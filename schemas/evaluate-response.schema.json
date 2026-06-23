@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://afs.local/schemas/evaluate-response.schema.json",
+  "title": "EvaluateResponse",
+  "description": "Response from POST /evaluate",
+  "type": "object",
+  "required": [
+    "event_id",
+    "user_id",
+    "event_type",
+    "decision",
+    "final_score",
+    "risk_level",
+    "engines",
+    "latency_ms",
+    "source",
+    "scored_at"
+  ],
+  "properties": {
+    "event_id": { "type": "string" },
+    "user_id": { "type": "string" },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "signup",
+        "signup_failed",
+        "login",
+        "login_failed",
+        "deposit",
+        "withdrawal",
+        "bet"
+      ]
+    },
+    "decision": {
+      "type": "string",
+      "enum": ["allow", "challenge", "block"]
+    },
+    "final_score": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "risk_level": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "critical"]
+    },
+    "engines": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/EngineResult" }
+    },
+    "latency_ms": { "type": "integer", "minimum": 0 },
+    "source": { "type": "string", "enum": ["sync", "async"] },
+    "scored_at": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "EngineResult": {
+      "type": "object",
+      "required": ["engine", "score", "signals"],
+      "properties": {
+        "engine": { "type": "string" },
+        "score": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "signals": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

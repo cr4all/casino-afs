@@ -1,0 +1,11 @@
+venv/
+.git/
+**/__pycache__/
+**/.pytest_cache/
+**/*.pyc
+data/
+.env
+Risk/.env
+Orchestrator/.env
+*.md
+!README.md

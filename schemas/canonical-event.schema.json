@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://afs.local/schemas/canonical-event.schema.json",
+  "title": "CanonicalEvent",
+  "description": "AFS scoring payload. Platform async events use casino-api-contract PlatformEventEnvelope (see contracts/platform-events-v1.yaml). Auth gates use the same event_type strings below.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "event_type", "timestamp", "user", "context"],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Unique idempotency key per request. Use UUID v4."
+    },
+    "event_type": {
+      "type": "string",
+      "description": "Must match casino-api-contract event_type / routing key where applicable.",
+      "enum": [
+        "wallet.bet",
+        "wallet.win",
+        "game.bet",
+        "payment.deposit",
+        "payment.withdraw",
+        "bonus.created",
+        "player.signup",
+        "player.signup.failed",
+        "player.login",
+        "player.login.failed"
+      ]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC. Platform contract field: occurred_at"
+    },
+    "user": { "$ref": "#/$defs/UserData" },
+    "context": { "$ref": "#/$defs/ContextData" },
+    "transaction": { "$ref": "#/$defs/TransactionData" },
+    "metadata": { "$ref": "#/$defs/MetadataData" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "enum": ["payment.deposit", "payment.withdraw", "wallet.bet", "game.bet", "wallet.win"]
+          }
+        },
+        "required": ["event_type"]
+      },
+      "then": { "required": ["transaction"] }
+    }
+  ],
+  "$defs": {
+    "UserData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["user_id"],
+      "properties": {
+        "user_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "email": { "type": ["string", "null"], "format": "email" },
+        "phone": { "type": ["string", "null"], "maxLength": 32 },
+        "name": { "type": ["string", "null"], "maxLength": 256 }
+      }
+    },
+    "ContextData": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ip": { "type": ["string", "null"], "maxLength": 45 },
+        "user_agent": { "type": ["string", "null"], "maxLength": 512 },
+        "device_id": { "type": ["string", "null"], "maxLength": 128 },
+        "country": {
+          "type": ["string", "null"],
+          "pattern": "^[A-Z]{2}$",
+          "description": "ISO 3166-1 alpha-2 uppercase, e.g. DE"
+        },
+        "fingerprint": {
+          "type": ["string", "null"],
+          "pattern": "^[a-f0-9]{32}$",
+          "description": "FingerprintJS visitorId (32 hex chars)"
+        },
+        "fingerprint_version": { "type": ["string", "null"], "maxLength": 16 },
+        "browser_language": { "type": ["string", "null"], "maxLength": 32 },
+        "timezone": { "type": ["string", "null"], "maxLength": 64 },
+        "platform": { "type": ["string", "null"], "maxLength": 64 },
+        "screen_resolution": { "type": ["string", "null"], "maxLength": 32 }
+      }
+    },
+    "TransactionData": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "amount": { "type": ["number", "null"], "minimum": 0 },
+        "currency": {
+          "type": ["string", "null"],
+          "pattern": "^[A-Z]{3}$",
+          "description": "ISO 4217 uppercase, e.g. EUR"
+        },
+        "payment_method_type": {
+          "type": ["string", "null"],
+          "maxLength": 64,
+          "description": "Payout method category: bank, crypto, ewallet, card, etc."
+        },
+        "payment_method_key": {
+          "type": ["string", "null"],
+          "maxLength": 256,
+          "description": "Normalized payout destination (IBAN, wallet address, e-wallet id). Prefer sending a hash from your backend."
+        }
+      }
+    },
+    "MetadataData": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "type": ["string", "null"],
+          "enum": ["web", "mobile", "api", null]
+        },
+        "session_id": { "type": ["string", "null"], "maxLength": 128 },
+        "referrer": { "type": ["string", "null"], "maxLength": 512 },
+        "failure_reason": { "type": ["string", "null"], "maxLength": 256 },
+        "step_up_verification": { "$ref": "#/$defs/StepUpVerificationData" }
+      }
+    },
+    "StepUpVerificationData": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "verified", "verified_at"],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": ["cloudflare_turnstile"]
+        },
+        "verified": { "type": "boolean" },
+        "verified_at": { "type": "string", "format": "date-time" },
+        "hostname": { "type": ["string", "null"], "maxLength": 256 },
+        "action": { "type": ["string", "null"], "maxLength": 128 }
+      }
+    }
+  }
+}

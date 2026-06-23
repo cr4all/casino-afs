@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://afs.local/schemas/risk-action.schema.json",
+  "title": "RiskActionMessage",
+  "description": "Message consumed from RabbitMQ queue risk.actions",
+  "type": "object",
+  "required": [
+    "event_id",
+    "user_id",
+    "event_type",
+    "decision",
+    "final_score",
+    "risk_level",
+    "action",
+    "signals",
+    "processed_at"
+  ],
+  "properties": {
+    "event_id": { "type": "string" },
+    "user_id": { "type": "string" },
+    "event_type": { "type": "string" },
+    "decision": {
+      "type": "string",
+      "enum": ["allow", "challenge", "block"]
+    },
+    "final_score": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "risk_level": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "critical"]
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "allow",
+        "hold_withdrawal",
+        "block_login",
+        "reject_signup",
+        "rate_limit_ip",
+        "rate_limit_signup",
+        "block_deposit",
+        "block_bet",
+        "block",
+        "require_mfa",
+        "manual_review_withdrawal",
+        "step_up_verification",
+        "flag_for_review"
+      ]
+    },
+    "signals": { "type": "array", "items": { "type": "string" } },
+    "processed_at": { "type": "string", "format": "date-time" }
+  }
+}
