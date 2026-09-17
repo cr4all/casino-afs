@@ -5,8 +5,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from shared.db.urls import build_amqp_url, build_postgres_sqlalchemy_url, build_redis_url
 
-# Always load Risk/.env regardless of process working directory (uvicorn cwd varies).
-_ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
+# Always load the repository-level .env regardless of process working directory.
+_ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
 
 
 class Settings(BaseSettings):

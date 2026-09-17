@@ -316,7 +316,7 @@ def build_login_event(user_id: str, context: dict) -> dict:
 |-------------------------|---------------|
 | **Risk API (sync)** | `http://localhost:8001/evaluate` |
 | **Risk health / docs** | `http://localhost:8001/health` · `http://localhost:8001/docs` |
-| **Admin UI (runtime config + monitoring)** | `http://localhost:8001/admin` (password = `ADMIN_API_KEY` in `Risk/.env`) |
+| **Admin UI (runtime config + monitoring)** | `http://localhost:8001/admin` (password = `ADMIN_API_KEY` in the root `.env`) |
 | **Event schema** | `http://localhost:8001/integration/event-schema` |
 | **Publish async events** | RabbitMQ `amqp://casino:secret@10.10.51.60:5672/` → exchange `casino.events` |
 | **Consume enforcement actions** | RabbitMQ queue `risk.actions` on the same broker |
@@ -1087,7 +1087,7 @@ Use the admin UI during integration and go-live to confirm events are scored cor
 ### Access
 
 1. Open **`http://localhost:8001/admin`** (or your Risk service URL + `/admin`)
-2. Enter the **Password** — same value as `ADMIN_API_KEY` in `Risk/.env` (or `docker-compose.yml` for Docker)
+2. Enter the **Password** — same value as `ADMIN_API_KEY` in the root `.env`
 
 ### Dashboard tab
 

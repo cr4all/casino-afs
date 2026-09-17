@@ -5,7 +5,5 @@ venv/
 **/*.pyc
 data/
 .env
-Risk/.env
-Orchestrator/.env
 *.md
 !README.md

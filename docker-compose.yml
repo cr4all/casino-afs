@@ -4,15 +4,15 @@ services:
   postgres:
     image: ${POSTGRES_IMAGE:-postgres:16-alpine}
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-afs}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-AfsP0stgr3s_D0ck3r!2026}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in root .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in root .env}
       POSTGRES_DB: ${POSTGRES_DB:-afs}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-afs} -d ${POSTGRES_DB:-afs}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:?Set POSTGRES_USER in root .env} -d ${POSTGRES_DB:-afs}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -21,13 +21,13 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:-AfsR3d1s_D0ck3r!2026#Kx9mP2vL7n}"]
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?Set REDIS_PASSWORD in root .env}"]
     volumes:
       - redis_data:/data
     ports:
       - "${REDIS_PORT:-6379}:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-AfsR3d1s_D0ck3r!2026#Kx9mP2vL7n}", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:?Set REDIS_PASSWORD in root .env}", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -37,8 +37,8 @@ services:
   rabbitmq:
     image: ${RABBITMQ_IMAGE:-rabbitmq:3.13-management-alpine}
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-afs_mq_prod}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-MqPubl1c_AFS!2026_Kx9mP2vL7nQw8zR4}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?Set RABBITMQ_USER in root .env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in root .env}
       RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-/}
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
@@ -58,35 +58,37 @@ services:
       context: .
       dockerfile: Dockerfile
       target: risk
+    env_file:
+      - .env
     ports:
       - "${RISK_PORT:-8001}:8001"
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-afs}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-AfsP0stgr3s_D0ck3r!2026}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in root .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in root .env}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_DB: ${POSTGRES_DB:-afs}
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: "5672"
-      RABBITMQ_USER: ${RABBITMQ_USER:-afs_mq_prod}
-      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-MqPubl1c_AFS!2026_Kx9mP2vL7nQw8zR4}
+      RABBITMQ_USER: ${RABBITMQ_USER:?Set RABBITMQ_USER in root .env}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in root .env}
       RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/}
       RABBITMQ_ENABLED: ${RABBITMQ_ENABLED:-true}
       RABBITMQ_PUBLISH_RESULTS: ${RABBITMQ_PUBLISH_RESULTS:-true}
-      RABBITMQ_EVENTS_EXCHANGE: casino.events
-      RABBITMQ_EVENTS_EXCHANGE_TYPE: topic
-      RABBITMQ_EVENTS_QUEUE: casino.afs
-      RABBITMQ_EVENTS_BINDING_KEY: "#"
-      RABBITMQ_RESULTS_QUEUE: risk.results
-      REDIS_ENABLED: "true"
+      RABBITMQ_EVENTS_EXCHANGE: ${RABBITMQ_EVENTS_EXCHANGE:-casino.events}
+      RABBITMQ_EVENTS_EXCHANGE_TYPE: ${RABBITMQ_EVENTS_EXCHANGE_TYPE:-topic}
+      RABBITMQ_EVENTS_QUEUE: ${RABBITMQ_EVENTS_QUEUE:-casino.afs}
+      RABBITMQ_EVENTS_BINDING_KEY: ${RABBITMQ_EVENTS_BINDING_KEY:-#}
+      RABBITMQ_RESULTS_QUEUE: ${RABBITMQ_RESULTS_QUEUE:-risk.results}
+      REDIS_ENABLED: ${REDIS_ENABLED:-true}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-AfsR3d1s_D0ck3r!2026#Kx9mP2vL7n}
-      REDIS_DB: "0"
-      SYNC_PUBLISH_AUDIT: "true"
-      IP_INTEL_ENABLED: "true"
-      IP_INTEL_FAIL_OPEN: "true"
-      ADMIN_API_KEY: ${ADMIN_API_KEY:-lkdjf#Kjlk3jF#LKJfj3kF#}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in root .env}
+      REDIS_DB: ${REDIS_DB:-0}
+      SYNC_PUBLISH_AUDIT: ${SYNC_PUBLISH_AUDIT:-true}
+      IP_INTEL_ENABLED: ${IP_INTEL_ENABLED:-true}
+      IP_INTEL_FAIL_OPEN: ${IP_INTEL_FAIL_OPEN:-true}
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-}
     volumes:
       - ./data:/app/data
       - ./admin:/app/admin:ro
@@ -104,21 +106,23 @@ services:
       context: .
       dockerfile: Dockerfile
       target: orchestrator
+    env_file:
+      - .env
     ports:
       - "${ORCHESTRATOR_PORT:-8002}:8002"
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-afs}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-AfsP0stgr3s_D0ck3r!2026}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in root .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in root .env}
       POSTGRES_HOST: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_DB: ${POSTGRES_DB:-afs}
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: "5672"
-      RABBITMQ_USER: ${RABBITMQ_USER:-afs_mq_prod}
-      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-MqPubl1c_AFS!2026_Kx9mP2vL7nQw8zR4}
+      RABBITMQ_USER: ${RABBITMQ_USER:?Set RABBITMQ_USER in root .env}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in root .env}
       RABBITMQ_VHOST: ${RABBITMQ_VHOST:-/}
-      RABBITMQ_RESULTS_QUEUE: risk.results
-      RABBITMQ_ACTIONS_QUEUE: risk.actions
+      RABBITMQ_RESULTS_QUEUE: ${RABBITMQ_RESULTS_QUEUE:-risk.results}
+      RABBITMQ_ACTIONS_QUEUE: ${RABBITMQ_ACTIONS_QUEUE:-risk.actions}
     depends_on:
       postgres:
         condition: service_healthy

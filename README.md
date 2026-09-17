@@ -362,9 +362,9 @@ pip install -r requirement.txt
 
 ## Step 2 — Configure environment
 
-Create a `.env` file in **both** `Risk/` and `Orchestrator/` (or one shared file copied to each). Settings are loaded via `pydantic-settings`.
+Copy `.env.docker.example` to `.env` in the **repository root**. Risk, Orchestrator, and Docker Compose all use this single file.
 
-### Risk service (`Risk/.env`)
+### Risk service settings
 
 ```env
 # Database (shared between Risk and Orchestrator)
@@ -396,7 +396,7 @@ SYNC_PUBLISH_AUDIT=true
 DECISION_CACHE_TTL_SECONDS=60
 ```
 
-### Orchestrator (`Orchestrator/.env`)
+### Orchestrator settings
 
 ```env
 DATABASE_URL=sqlite:///../data/afs_risk.db
@@ -454,7 +454,7 @@ The Risk consumer **acks and skips** non-risk events (e.g. `bonus.granted`) when
 docker run -d --name redis -p 6379:6379 redis:7
 ```
 
-Then set `REDIS_ENABLED=true` in `Risk/.env`.
+Then set `REDIS_ENABLED=true` in the root `.env`.
 
 ---
 
@@ -705,7 +705,7 @@ Queue:    casino.afs
 Binding:  #   (all platform events)
 ```
 
-Configure in `Risk/.env` (defaults match this setup):
+Configure in the root `.env` (defaults match this setup):
 
 ```env
 RABBITMQ_EVENTS_EXCHANGE=casino.events
@@ -1227,7 +1227,7 @@ Ensure Risk is running and `client/` exists at the repo root (not inside `Risk/`
 ## Quick start checklist
 
 - [ ] Install Python 3.11 and `pip install -r requirement.txt`
-- [ ] Create `Risk/.env` and `Orchestrator/.env`
+- [ ] Copy `.env.docker.example` to the root `.env`
 - [ ] Start RabbitMQ (or disable async in `.env`)
 - [ ] Run `py -3.11 run_all.py`
 - [ ] Verify `GET http://localhost:8001/health`
