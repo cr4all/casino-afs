@@ -7,6 +7,7 @@ from app.engines import (
     email,
     fingerprint,
     gaming,
+    hedge_betting,
     identity,
     ip,
     login,
@@ -34,6 +35,7 @@ ENGINES: dict[str, EngineFn] = {
     "auth_failure": auth_failure.evaluate,
     "trusted_device": trusted_device.evaluate,
     "gaming": gaming.evaluate,
+    "hedge_betting": hedge_betting.evaluate,
     "velocity": velocity.evaluate,
     "transaction": transaction.evaluate,
     "aml_blocklist": aml_blocklist.evaluate,
@@ -57,7 +59,26 @@ CRITICAL_SIGNALS = frozenset(
         "vpn_withdrawal_attempt",
         "emulator_detected",
         "brute_force_login_suspected",
+        "hedged_bet_volume_washing",
+    }
+)
+
+# Shared fingerprint multi-account — hard block before device-trust challenge.
+MULTI_ACCOUNT_FINGERPRINT_BLOCK_SIGNALS = frozenset(
+    {
+        "multiple_accounts_same_fingerprint",
+        "multi_account_fingerprint_abuse",
+        "high_signup_fingerprint_velocity",
+    }
+)
+
+# Device-trust signals always map to challenge — never hard block via critical list.
+DEVICE_TRUST_CHALLENGE_SIGNALS = frozenset(
+    {
         "new_device_on_withdrawal",
+        "untrusted_device_login",
+        "untrusted_device_deposit",
+        "first_device_seen_for_user",
     }
 )
 
@@ -81,5 +102,10 @@ def collect_signals(engine_results: dict[str, EngineResult]) -> list[str]:
 
 
 def has_critical_signal(engine_results: dict[str, EngineResult]) -> bool:
-    critical = _critical_signal_set()
+    critical = _critical_signal_set() - DEVICE_TRUST_CHALLENGE_SIGNALS
     return any(signal in critical for signal in collect_signals(engine_results))
+
+
+def has_multi_account_fingerprint_signal(engine_results: dict[str, EngineResult]) -> bool:
+    signal_set = set(collect_signals(engine_results))
+    return bool(signal_set & MULTI_ACCOUNT_FINGERPRINT_BLOCK_SIGNALS)

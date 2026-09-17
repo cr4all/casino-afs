@@ -1,0 +1,590 @@
+{
+  "decision_thresholds.challenge": {
+    "label": "Challenge 阈值",
+    "description": "中等风险的最低分数。结果通常为 challenge（Turnstile、MFA、人工审核），而非 allow。",
+    "example": "40 — 分数 39 的玩家为 allow；分数 40+ 为 challenge，除非已触发 hard-block signal。"
+  },
+  "decision_thresholds.high": {
+    "label": "高风险阈值",
+    "description": "高风险的最低分数。Login/signup 常被 block；deposit/withdraw/bet 可能被 block 或需额外检查。",
+    "example": "61 — 分数 60 仍为中等/challenge；分数 61+ 为高风险。"
+  },
+  "decision_thresholds.block": {
+    "label": "Block 阈值（严重）",
+    "description": "严重风险的最低分数。通常为 block，除非 Decision 标签页中的 signal 已强制 block。",
+    "example": "85 — 分数 84 可能仍为高风险；分数 85+ 为严重/block。"
+  },
+  "operator.platform_name": {
+    "label": "平台名称",
+    "description": "此 operator 实例的内部标签。用于日志和审计记录 — 不发送给玩家。",
+    "example": "DoveBet EU",
+    "signal": "unlicensed_jurisdiction（当国家不在 licensed markets 中时）"
+  },
+  "operator.licensed_markets": {
+    "label": "Licensed markets",
+    "description": "持有博彩牌照的 ISO 3166-1 alpha-2 国家代码。在 signup、deposit、bet 事件中通过玩家国家或 IP 地理位置检查。",
+    "example": "DE,GB,MT,SE — 来自 FR 且无牌照的玩家触发 unlicensed_jurisdiction。",
+    "signal": "unlicensed_jurisdiction"
+  },
+  "ip_intel.enabled": {
+    "label": "已启用",
+    "description": "主开关。关闭时不执行外部 IP 查询，也不发出 vpn/proxy/tor/hosting signal。",
+    "example": "本地开发中若不想发起出站 API 调用可关闭。",
+    "signal": "vpn_detected, proxy_detected, tor_exit_node, hosting_provider_ip"
+  },
+  "ip_intel.cache_ttl_seconds": {
+    "label": "缓存 TTL（秒）",
+    "description": "每个 IP 查询结果在 Redis 或内存中缓存的时长，之后重新获取。",
+    "example": "3600 — 同一 IP 每小时检查一次；VPN 切换可能延迟最多 1 小时。"
+  },
+  "ip_intel.timeout_seconds": {
+    "label": "查询超时（秒）",
+    "description": "每次外部 IP API 请求的最大等待时间。影响缓存未命中时的 evaluate 延迟。",
+    "example": "2.0 — 快速 fail 或 fail-open；5.0 — 为慢速 API 留出更多时间。"
+  },
+  "ip_intel.fail_open": {
+    "label": "查询错误时 fail open",
+    "description": "开启时 API 超时/错误不增加风险。关闭时将查询失败视为可疑（疑似 VPN/proxy）。",
+    "example": "生产环境若 IP API 宕机不得 block login 则开启；偏好严格行为则关闭。"
+  },
+  "aml.single_deposit_threshold": {
+    "label": "单笔 deposit 审核",
+    "description": "单笔 payment.deposit 达到或超过此金额触发 compliance review tier 1。",
+    "example": "2000 — €2,000 deposit 触发 elevated_deposit_aml_review。",
+    "signal": "elevated_deposit_aml_review"
+  },
+  "aml.large_deposit_threshold": {
+    "label": "大额 deposit 审核",
+    "description": "最高 deposit AML tier — 用于非常大的单笔 deposit。",
+    "example": "10000 — €10,000 deposit 触发 large_deposit_aml_review。",
+    "signal": "large_deposit_aml_review"
+  },
+  "aml.withdrawal_review_threshold": {
+    "label": "Withdraw 审核",
+    "description": "单笔 payment.withdraw 达到或超过此金额触发 cashout 审核 signal。",
+    "example": "1000 — €1,000 withdrawal 触发 elevated_withdrawal_review 和 cashout_review_required。",
+    "signal": "elevated_withdrawal_review, cashout_review_required"
+  },
+  "aml.structuring_threshold": {
+    "label": "Structuring 阈值",
+    "description": "标记此金额 90% 至 100% 之间的 deposit — 用于刚好低于报告限额的模式。",
+    "example": "3000 — €2,850 deposit（3000 的 95%）触发 structuring_threshold_deposit。",
+    "signal": "structuring_threshold_deposit"
+  },
+  "aml.micro_deposit_max": {
+    "label": "Micro deposit 上限",
+    "description": "严格低于此金额的 deposit 触发 bonus-farming / 支付测试检测。",
+    "example": "10 — €5 deposit 触发 micro_deposit_bonus_farming。",
+    "signal": "micro_deposit_bonus_farming"
+  },
+  "aml.high_stake_bet_threshold": {
+    "label": "高注 bet",
+    "description": "单笔 wallet.bet / game.bet 达到或超过此金额。超过 €100 的 bet（固定引擎规则）也会触发 elevated_stake_bet。",
+    "example": "500 — €500 bet 触发 high_stake_bet。",
+    "signal": "high_stake_bet, elevated_stake_bet"
+  },
+  "aml.blocklist.enabled": {
+    "label": "Blocklist 筛查已启用",
+    "description": "所有 AML blocklist 引擎（crypto、bank、country 等）的主开关。",
+    "example": "仅在 AFS 外部完全运行 blocklist 检查时关闭。"
+  },
+  "aml.blocklist.crypto_enabled": {
+    "label": "Crypto wallet 筛查",
+    "description": "在 payment.withdraw / payment.deposit 上对照 OFAC sync + 手动列表检查 crypto  payout 地址。",
+    "example": "在 withdraw evaluate 时发送 payment_method_type: crypto 和 payment_method_key: 0xabc…。",
+    "signal": "ofac_sanctioned_wallet, blocklisted_payout_address"
+  },
+  "aml.blocklist.bank_enabled": {
+    "label": "Bank account 筛查",
+    "description": "在银行 payout 上检查 IBAN/银行账户 ID。",
+    "example": "payment_method_type: bank, payment_method_key: DE89370400440532013000",
+    "signal": "blocklisted_payout_address"
+  },
+  "aml.blocklist.ewallet_enabled": {
+    "label": "E-wallet 筛查",
+    "description": "在 e-wallet payout 上检查 e-wallet ID 或邮箱。",
+    "example": "payment_method_type: ewallet, payment_method_key: skrill_user@email.com",
+    "signal": "blocklisted_payout_address"
+  },
+  "aml.blocklist.card_enabled": {
+    "label": "Card payout 筛查",
+    "description": "在 card withdrawal 上检查 card token 或 payout 引用。",
+    "example": "payment_method_type: card, payment_method_key: card_token_abc123",
+    "signal": "blocklisted_payout_address"
+  },
+  "aml.blocklist.country_enabled": {
+    "label": "Country blocklist 筛查",
+    "description": "当玩家国家与 OFAC sync、Lists 标签页或手动 countries 匹配时 block signup/login/deposit/withdraw。",
+    "example": "玩家国家 KP 且 country blocklist 已启用 → blocklisted_country。",
+    "signal": "blocklisted_country"
+  },
+  "aml.blocklist.sync_ofac_crypto_enabled": {
+    "label": "自动 sync OFAC crypto wallet",
+    "description": "每日拉取美国财政部 SDN crypto 地址。需要 Risk 容器出站 HTTPS。",
+    "example": "启用后使用下方 Sync OFAC lists now 按钮。"
+  },
+  "aml.blocklist.sync_ofac_countries_enabled": {
+    "label": "自动 sync OFAC countries",
+    "description": "每次 sync 将 Treasury 衍生的制裁国家 ISO 代码加载到 Postgres。",
+    "example": "按计划（sync interval）及手动 sync 时运行。"
+  },
+  "aml.blocklist.sync_interval_hours": {
+    "label": "Sync 间隔（小时）",
+    "description": "后台任务刷新 OFAC crypto 和 country 列表的频率。",
+    "example": "24 — 每天 sync 一次；6 — 更频繁更新。"
+  },
+  "aml.blocklist.fail_open": {
+    "label": "Sync 不可用时 fail open",
+    "description": "开启时空/陈旧 blocklist DB 不 block payout。关闭时缺失 sync 数据视为高风险。",
+    "example": "生产环境为韧性开启；最大 compliance 严格性则关闭。"
+  },
+  "aml.blocklist.use_lists_sanctioned_countries": {
+    "label": "包含 Lists 标签页制裁国家",
+    "description": "将 Lists → sanctioned countries 合并到 country blocklist 检查（除 OFAC sync 和手动外）。",
+    "example": "在 Lists 标签页添加 IR 并启用 → 伊朗玩家触发 sanctioned_country。",
+    "signal": "sanctioned_country"
+  },
+  "aml.blocklist.crypto_hit_score": {
+    "label": "Payout blocklist hit 分数",
+    "description": "任何 payout 目的地（crypto/bank/e-wallet/card）匹配 blocklist 条目时增加的风险分数。",
+    "example": "90 — 与其他 signal 结合时通常推动决策 toward block。"
+  },
+  "aml.blocklist.country_hit_score": {
+    "label": "Country blocklist hit 分数",
+    "description": "玩家国家匹配 blocklist 时的风险分数。",
+    "example": "90 — 默认；若偏好 challenge 而非 block 可降至 70。"
+  },
+  "aml.blocklist.manual_crypto_wallets": {
+    "label": "手动 crypto wallet",
+    "description": "额外要 block 的 wallet 地址 — 每行一个。除 OFAC sync 外还在 crypto payout 上检查。",
+    "example": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb\\nbc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"
+  },
+  "aml.blocklist.manual_bank_accounts": {
+    "label": "手动 bank account",
+    "description": "要 block 的 IBAN 或银行账户标识符 — 每行一个。",
+    "example": "DE89370400440532013000\\nGB82WEST12345698765432"
+  },
+  "aml.blocklist.manual_ewallet_accounts": {
+    "label": "手动 e-wallet account",
+    "description": "要 block 的 e-wallet ID 或邮箱 — 每行一个。",
+    "example": "skrill:fraud_ring_01\\nneteller:abuse@test.com"
+  },
+  "aml.blocklist.manual_card_accounts": {
+    "label": "手动 card payout",
+    "description": "要 block 的 card token 或 payout 引用 — 每行一个。",
+    "example": "card_token_stolen_batch_42\\nvisa_payout_ref_99102"
+  },
+  "aml.blocklist.manual_countries": {
+    "label": "手动 blocklist countries",
+    "description": "要 block 的 ISO 3166-1 alpha-2 代码 — 每行一个。与 OFAC sync 和 Lists 标签页合并。",
+    "example": "IR\\nKP\\nSY",
+    "signal": "blocklisted_country"
+  },
+  "withdrawal_method.enabled": {
+    "label": "已启用",
+    "description": "关闭时跳过共享 payout 目的地检查。",
+    "example": "每次 payment.withdraw evaluate 需要 payment_method_type + payment_method_key。",
+    "signal": "shared_withdrawal_method, multiple_accounts_shared_payout_method, multi_account_shared_withdrawal_method"
+  },
+  "withdrawal_method.distinct_users_medium": {
+    "label": "不同 user（中等）",
+    "description": "中等 tier 触发前有多少不同 user_id 须 withdraw 到同一 payout key。",
+    "example": "2 — user A 和 B 均 withdraw 到 IBAN DE89… → shared_withdrawal_method。",
+    "signal": "shared_withdrawal_method"
+  },
+  "withdrawal_method.distinct_users_high": {
+    "label": "不同 user（高）",
+    "description": "高 tier multi-account payout 滥用的不同 user 阈值。",
+    "example": "3 — 三个账户共享一个 Skrill 邮箱。",
+    "signal": "multiple_accounts_shared_payout_method"
+  },
+  "withdrawal_method.distinct_users_critical": {
+    "label": "不同 user（严重）",
+    "description": "严重 tier 的不同 user 阈值 — 通常通过 Decision 标签页强制 block。",
+    "example": "4 — 四个账户，同一 crypto wallet → multi_account_shared_withdrawal_method（hard block）。",
+    "signal": "multi_account_shared_withdrawal_method"
+  },
+  "withdrawal_method.medium_score": {
+    "label": "中等分数",
+    "description": "达到不同 user 中等阈值时增加的风险分数。",
+    "example": "35 — 与其他引擎结合以达到 challenge/high。"
+  },
+  "withdrawal_method.high_score": {
+    "label": "高分数",
+    "description": "达到不同 user 高阈值时增加的风险分数。",
+    "example": "55"
+  },
+  "withdrawal_method.critical_score": {
+    "label": "严重分数",
+    "description": "达到不同 user 严重阈值时增加的风险分数。",
+    "example": "80 — 若 decision threshold ≤80，通常单独足够 block。"
+  },
+  "betting_patterns.enabled": {
+    "label": "已启用",
+    "description": "顺序 burst 计数器和 win-rate ratio 检查的主开关。",
+    "example": "关闭则禁用此标签页所有 signal。"
+  },
+  "betting_patterns.burst_window_seconds": {
+    "label": "Burst window（秒）",
+    "description": "所有 burst 计数器和 win-rate 计算的滚动时间窗口。",
+    "example": "300 — 5 分钟内 10 个 game.bets 计入 burst；每个事件窗口滑动。"
+  },
+  "betting_patterns.game_bet_burst_medium": {
+    "label": "game.bet burst — 中等",
+    "description": "中等 burst signal 前窗口内的顺序 game.bet 事件。",
+    "example": "10 — 300 秒内连续放置 10 次 bonus spin。",
+    "signal": "sequential_game_bet_burst"
+  },
+  "betting_patterns.game_bet_burst_high": {
+    "label": "game.bet burst — 高",
+    "description": "高 tier burst 的顺序 game.bet 计数。",
+    "example": "20",
+    "signal": "sequential_game_bet_burst (higher score tier)"
+  },
+  "betting_patterns.game_bet_burst_critical": {
+    "label": "game.bet burst — 严重",
+    "description": "严重 tier burst 的顺序 game.bet 计数。",
+    "example": "35",
+    "signal": "sequential_game_bet_burst (critical score tier)"
+  },
+  "betting_patterns.wallet_bet_burst_medium": {
+    "label": "wallet.bet burst — 中等",
+    "description": "中等 burst 前窗口内的顺序 wallet.bet（真钱）事件。",
+    "example": "20 — 快速 live-casino betting bot 模式。",
+    "signal": "sequential_wallet_bet_burst"
+  },
+  "betting_patterns.wallet_bet_burst_high": {
+    "label": "wallet.bet burst — 高",
+    "description": "高 tier 的顺序 wallet.bet 计数。",
+    "example": "40",
+    "signal": "sequential_wallet_bet_burst (higher score tier)"
+  },
+  "betting_patterns.wallet_bet_burst_critical": {
+    "label": "wallet.bet burst — 严重",
+    "description": "严重 tier 的顺序 wallet.bet 计数。",
+    "example": "60",
+    "signal": "sequential_wallet_bet_burst (critical score tier)"
+  },
+  "betting_patterns.wallet_win_burst_medium": {
+    "label": "wallet.win burst — 中等",
+    "description": "中等 win burst 前窗口内的顺序 wallet.win 入账。",
+    "example": "8 — 短时间内大量 win 入账。",
+    "signal": "sequential_wallet_win_burst"
+  },
+  "betting_patterns.wallet_win_burst_high": {
+    "label": "wallet.win burst — 高",
+    "description": "高 tier 的顺序 wallet.win 计数。",
+    "example": "15",
+    "signal": "sequential_wallet_win_burst (higher score tier)"
+  },
+  "betting_patterns.wallet_win_burst_critical": {
+    "label": "wallet.win burst — 严重",
+    "description": "严重 tier 的顺序 wallet.win 计数。",
+    "example": "25",
+    "signal": "sequential_wallet_win_burst (critical score tier)"
+  },
+  "betting_patterns.win_rate_min_bets": {
+    "label": "Win rate — 最少 bet",
+    "description": "评估 win-rate ratio 前窗口内最少 wallet.bet + game.bet 计数。",
+    "example": "5 — 至少需 5 个 bet；4 win / 4 bet 在第 5 个 bet 前被忽略。"
+  },
+  "betting_patterns.win_rate_high_ratio": {
+    "label": "Win rate — 高 ratio",
+    "description": "触发高 win-rate signal 的 win ÷ bet ratio（0–1）。",
+    "example": "0.75 — 窗口内 8 bet 中 6 win（75%）触发 high_win_rate_in_betting_sequence。",
+    "signal": "high_win_rate_in_betting_sequence"
+  },
+  "betting_patterns.win_rate_critical_ratio": {
+    "label": "Win rate — 严重 ratio",
+    "description": "严重 win-rate tier 的 win ÷ bet ratio。",
+    "example": "0.90 — 10 bet 中 9 win 触发 critical_win_rate_in_betting_sequence。",
+    "signal": "critical_win_rate_in_betting_sequence"
+  },
+  "hedge_betting.enabled": {
+    "label": "已启用",
+    "description": "hedged-round 检测和 volume-washing ratio 的主开关。",
+    "example": "若尚未发送 metadata.game.selection 和 round_id 则关闭。"
+  },
+  "hedge_betting.window_seconds": {
+    "label": "Stats window（秒）",
+    "description": "统计重复 hedged round 和 gross volume ratio 的滚动窗口。",
+    "example": "3600 — 统计每 user 过去一小时的 hedged round。"
+  },
+  "hedge_betting.round_leg_ttl_seconds": {
+    "label": "Round leg TTL（秒）",
+    "description": "等待同一 round_id 对侧时存储第一条 bet leg 的时长。",
+    "example": "600 — 12:00:00 banker bet；12:09:59 player bet 仍匹配；12:10:01 leg 过期。"
+  },
+  "hedge_betting.time_pair_window_seconds": {
+    "label": "Time-pair window（秒）",
+    "description": "round_id 缺失但 table_id 存在时的 fallback 分组 — 同一 table 上此窗口内的 bet 可能配对。",
+    "example": "15 — 仅在 require_round_id 关闭且 round_id 缺失时使用。"
+  },
+  "hedge_betting.require_round_id": {
+    "label": "Require round_id",
+    "description": "开启时仅在 metadata.game.round_id 存在时运行 hedge 检查。backend 发送 round_id 后建议开启。",
+    "example": "生产环境开启 — 避免 time-pair fallback 误报。"
+  },
+  "hedge_betting.opposite_selection_groups": {
+    "label": "Opposite selection groups",
+    "description": "JSON 数组组。同一内部数组中的 selection 视为同一 round 的对立面。",
+    "signal": "opposite_side_bets_same_round"
+  },
+  "hedge_betting.amount_match_tolerance_percent": {
+    "label": "Amount match tolerance（%）",
+    "description": "对侧 leg 的 stake 须在此百分比范围内相互匹配。",
+    "example": "10 — banker €1000 + player €950 匹配；player €800 不匹配。"
+  },
+  "hedge_betting.opposite_side_same_round_score": {
+    "label": "分数 — opposite sides same round",
+    "description": "检测到单个 hedged round（对侧、匹配金额）时的风险分数。",
+    "example": "50 — 首个检测到的 banker+player 对时触发。",
+    "signal": "opposite_side_bets_same_round"
+  },
+  "hedge_betting.hedged_round_medium": {
+    "label": "Hedged rounds — 中等",
+    "description": "重复模式 signal（中等 tier）前 stats window 内不同 hedged round。",
+    "example": "3 — 一小时内三个独立 hedged hand。",
+    "signal": "repeated_hedged_rounds"
+  },
+  "hedge_betting.hedged_round_high": {
+    "label": "Hedged rounds — 高",
+    "description": "高 tier 的不同 hedged round。",
+    "example": "8",
+    "signal": "high_repeated_hedged_rounds"
+  },
+  "hedge_betting.hedged_round_critical": {
+    "label": "Hedged rounds — 严重",
+    "description": "严重 tier 的不同 hedged round。",
+    "example": "15",
+    "signal": "critical_hedged_bet_volume_washing"
+  },
+  "hedge_betting.volume_washing_enabled": {
+    "label": "Volume washing 检查",
+    "description": "开启时比较 stats window 内 hedged gross bet volume 与 total gross bet volume。",
+    "example": "玩家 1h 内 hedged €6000 + normal €4000 → 60% hedged share。",
+    "signal": "hedged_bet_volume_washing"
+  },
+  "hedge_betting.min_gross_volume": {
+    "label": "Volume washing — 最小 gross",
+    "description": "评估 volume-washing ratio 前窗口内最小 total bet volume。",
+    "example": "5000 — 玩家窗口内 gross bet 至少 €5000 前忽略 ratio。"
+  },
+  "hedge_betting.min_hedged_gross_ratio": {
+    "label": "Volume washing — 最小 hedged ratio",
+    "description": "触发 volume washing signal 的最小 hedged_gross ÷ total_gross ratio（0–1）。",
+    "example": "0.5 — gross volume 的 50% 或以上为 hedged → hedged_bet_volume_washing（在 Decision 中则为 hard block）。",
+    "signal": "hedged_bet_volume_washing"
+  },
+  "hedge_betting.volume_washing_score": {
+    "label": "分数 — volume washing",
+    "description": "达到 volume-washing ratio 阈值时增加的风险分数。",
+    "example": "55 — 与 opposite_side 分数结合以获得更高总分。"
+  },
+  "step_up_verification.enabled": {
+    "label": "已启用",
+    "description": "关闭时忽略 step_up_verification metadata，challenge 结果不降级。",
+    "example": "frontend 在 challenge 响应中显示 Turnstile 时开启。"
+  },
+  "step_up_verification.grant_ttl_days": {
+    "label": "Grant 时长（天）",
+    "description": "同一 user_id + device fingerprint 的成功 verification grant 有效时长。",
+    "example": "7 — 玩家通过 Turnstile 一次；同一 device 上 7 天内后续 login 为 allow。"
+  },
+  "step_up_verification.max_verified_age_minutes": {
+    "label": "verified_at 最大 age（分钟）",
+    "description": "metadata.verified_at 须在 evaluate 请求时间戳的此分钟数内。",
+    "example": "5 — 12:00 siteverify，12:06 evaluate → grant 因 stale 被拒绝。"
+  },
+  "step_up_verification.downgrade_challenge_to_allow": {
+    "label": "Challenge 降级为 allow",
+    "description": "开启时活跃 grant 将 challenge 决策改为 allow。永不 override block 或 critical signal。",
+    "example": "开启 — 通过 Turnstile 后的典型生产设置。"
+  },
+  "step_up_verification.allowed_hostnames": {
+    "label": "Allowed hostnames",
+    "description": "siteverify 响应的可选 Cloudflare hostname allowlist — 每行一个。空 = 跳过检查。",
+    "example": "casino.example.com\\nwww.casino.example.com"
+  },
+  "step_up_verification.applicable_event_types": {
+    "label": "Applicable event types",
+    "description": "step-up grant 可降级 challenge 的 event type — 每行一个。",
+    "example": "player.login\\nplayer.signup\\npayment.deposit"
+  },
+  "fingerprint.required_channels": {
+    "label": "Required channels",
+    "description": "预期 context.fingerprint 的 channel。这些 channel 上缺失值触发 missing_fingerprint。",
+    "example": "web,mobile — web signup 无 visitorId → missing_fingerprint。",
+    "signal": "missing_fingerprint"
+  },
+  "fingerprint.min_length": {
+    "label": "最小长度",
+    "description": "有效 FingerprintJS visitorId 最小字符长度。",
+    "example": "10 — abc123（6 字符）→ malformed_fingerprint。",
+    "signal": "malformed_fingerprint"
+  },
+  "fingerprint.max_length": {
+    "label": "最大长度",
+    "description": "有效 visitorId 最大长度。min–max 外的值被拒绝。",
+    "example": "64",
+    "signal": "malformed_fingerprint, invalid_fingerprint"
+  },
+  "fingerprint.suspicious_values": {
+    "label": "可疑值",
+    "description": "已知伪造或 placeholder fingerprint 字符串 — 每行一个。精确匹配则验证失败。",
+    "example": "undefined\\nnull\\n00000000-0000-0000-0000-000000000000",
+    "signal": "invalid_fingerprint"
+  },
+  "lists.disposable_domains": {
+    "label": "Disposable email domains",
+    "description": "一次性 email 提供商 domain。使用这些 domain 的 signup 通常 hard-blocked。",
+    "example": "mailinator.com\\n10minutemail.com\\nguerrillamail.com",
+    "signal": "disposable_email"
+  },
+  "lists.high_risk_countries": {
+    "label": "High-risk countries",
+    "description": "欺诈率较高的 ISO country code。在 geo/IP 检查上增加分数 — 非自动 block。",
+    "example": "NG\\nGH\\nPK",
+    "signal": "high_risk_country"
+  },
+  "lists.sanctioned_countries": {
+    "label": "Sanctioned countries",
+    "description": "制裁或禁止博彩 jurisdiction 的 ISO code。AML blocklist 包含 Lists 标签页时使用。",
+    "example": "IR\\nKP\\nCU",
+    "signal": "sanctioned_country"
+  },
+  "lists.generic_names": {
+    "label": "Generic names",
+    "description": "signup/identity 上的 placeholder display name — 每行一个，不区分大小写。",
+    "example": "test\\nuser\\nadmin\\nPlayer",
+    "signal": "generic_name"
+  },
+  "lists.role_based_email_locals": {
+    "label": "Role-based email locals",
+    "description": "表示非个人账户的 email local part（@ 前）。",
+    "example": "admin\\nsupport\\ninfo\\nnoreply",
+    "signal": "role_based_email"
+  },
+  "lists.suspicious_email_tlds": {
+    "label": "Suspicious email TLDs",
+    "description": "与 spam 关联的 top-level domain。email 以这些 TLD 结尾时匹配。",
+    "example": ".xyz\\n.top\\n.click",
+    "signal": "suspicious_email_tld"
+  },
+  "lists.suspicious_email_local_tokens": {
+    "label": "Suspicious email local tokens",
+    "description": "email local part 中暗示一次性或 bot account 的子字符串。",
+    "example": "temp\\nspam\\nbot\\nfake",
+    "signal": "suspicious_email_pattern"
+  },
+  "lists.bot_user_agent_tokens": {
+    "label": "Bot User-Agent tokens",
+    "description": "User-Agent header 中表示脚本或自动化的子字符串。",
+    "example": "curl\\npython-requests\\nheadless\\nscrapy",
+    "signal": "bot_user_agent"
+  },
+  "lists.emulator_ua_tokens": {
+    "label": "Emulator UA tokens",
+    "description": "Android emulator 或虚拟 device 的 User-Agent 模式。",
+    "example": "genymotion\\nbluestacks\\nsdk_gphone",
+    "signal": "emulator_detected"
+  },
+  "lists.suspicious_referrers": {
+    "label": "Suspicious referrers",
+    "description": "signup 上视为低信任的精确 referrer 值。",
+    "example": "direct\\nunknown\\n（blank referrer 的空行）",
+    "signal": "suspicious_referrer"
+  },
+  "lists.bonus_abuse_referrer_tokens": {
+    "label": "Bonus abuse referrer tokens",
+    "description": "与 bonus-hunting 或 affiliate abuse 站点关联的 signup referrer URL 子字符串。",
+    "example": "free-spins\\nno-deposit\\nbonus-hunter",
+    "signal": "bonus_abuse_referrer"
+  },
+  "velocity_thresholds": {
+    "label": "Velocity thresholds（JSON）",
+    "description": "阈值名称 → 最大 count 映射。后缀 _medium/_high/_critical 选择 tier。勿删除键 — 引擎需要完整集合。",
+    "example": "{\\n  \"login_ip_medium\": 5,\\n  \"login_ip_high\": 15,\\n  \"login_ip_critical\": 30,\\n  \"signup_ip_critical\": 10,\\n  \"deposit_user_high\": 6\\n}",
+    "signal": "medium_login_ip_velocity, bulk_login_attack, bulk_signup_attack, rapid_deposit_activity, …"
+  },
+  "critical_signals": {
+    "label": "Hard-block signals",
+    "description": "引擎发出的精确 signal name 字符串 — 每行一个。大小写必须完全匹配。",
+    "example": "disposable_email\\nbulk_login_attack\\nhedged_bet_volume_washing\\nmulti_account_shared_withdrawal_method"
+  },
+  "features.sync_publish_audit": {
+    "label": "Sync /evaluate 时 publish audit",
+    "description": "开启时同步 POST /evaluate 结果也 publish 到 RabbitMQ 供 Orchestrator audit。",
+    "example": "Orchestrator 须在 async event 相同 pipeline 中看到 sync API 决策时开启。"
+  },
+  "features.decision_cache_ttl_seconds": {
+    "label": "Decision cache TTL（秒）",
+    "description": "在 Redis 中缓存相同 event_id 决策以避免重复评分。需要 Redis 已启用。",
+    "example": "300 — 5 分钟内相同 event_id 返回缓存决策；0 = 禁用。"
+  },
+  "features.redis_enabled": {
+    "label": "Redis 已启用",
+    "description": "使用 Redis 存储 velocity counter、hedge/betting store 及可选 decision cache。",
+    "example": "单实例 dev（内存 counter）关闭；生产 multi-instance 开启。"
+  },
+  "features.redis_velocity_ip_ttl": {
+    "label": "Redis IP velocity TTL",
+    "description": "Redis 中 IP velocity key 的 sliding window 长度（秒）。",
+    "example": "3600 — login_ip_high 统计过去一小时内来自同一 IP 的 login。"
+  },
+  "features.redis_velocity_domain_ttl": {
+    "label": "Redis domain velocity TTL",
+    "description": "email domain signup velocity counter 的 sliding window 长度。",
+    "example": "86400 — signup_domain_* 统计 24h 内每 domain 的 signup。"
+  },
+  "features.rabbitmq_enabled": {
+    "label": "RabbitMQ consumer 已启用",
+    "description": "启动从 casino platform exchange/queue 评分 event 的 async consumer。",
+    "example": "platform 向 casino.events publish wallet.bet、player.login 等时开启。"
+  },
+  "features.rabbitmq_publish_results": {
+    "label": "Publish results 到 Orchestrator",
+    "description": "async scoring 后将 scored EvaluateResponse 消息 publish 到 results queue。",
+    "example": "Orchestrator 订阅 risk.results 进行 audit/action 时开启。"
+  },
+  "features.rabbitmq_events_exchange": {
+    "label": "Events exchange",
+    "description": "casino platform publish 的 topic exchange。空 = legacy direct queue mode。",
+    "example": "casino.events"
+  },
+  "features.rabbitmq_events_exchange_type": {
+    "label": "Exchange type",
+    "description": "AFS consumer declare/bind 的 RabbitMQ exchange type。",
+    "example": "topic"
+  },
+  "features.rabbitmq_events_queue": {
+    "label": "Events queue",
+    "description": "bind 到 platform exchange 后 AFS consume 的 queue。",
+    "example": "casino.afs"
+  },
+  "features.rabbitmq_events_binding_key": {
+    "label": "Binding key",
+    "description": "queue binding 的 routing key 模式。# = exchange 上所有 message。",
+    "example": "# — 所有 event；player.* — 仅 player routing key。"
+  },
+  "features.rabbitmq_prefetch": {
+    "label": "Prefetch count",
+    "description": "每个 consumer channel 的最大 unacknowledged message。",
+    "example": "10 — 保守；50 — 更高 throughput，更多 memory。"
+  },
+  "features.rabbitmq_results_queue": {
+    "label": "Results queue",
+    "description": "scored async result 的 outbound queue name。",
+    "example": "risk.results"
+  },
+  "logging.sync_enabled": {
+    "label": "Sync request/response logging",
+    "description": "在 Postgres 中存储 POST /evaluate 的完整 request 和 response payload。见下方 Log viewer。",
+    "example": "集成测试期间启用；高 volume 生产环境若 storage 是顾虑则禁用。"
+  },
+  "logging.async_enabled": {
+    "label": "Async request/response logging",
+    "description": "存储 RabbitMQ scored/skipped/rejected/failed message 及可用 payload。",
+    "example": "启用以调试 casino.events → AFS pipeline，无需 tail container log。"
+  }
+}

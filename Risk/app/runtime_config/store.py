@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.runtime_config.defaults import build_default_runtime_config
 from app.runtime_config.schema import RuntimeConfigData
+from app.runtime_config.thresholds import merge_score_weights, merge_velocity_thresholds
 from app.settings import Settings
 from shared.db.models import RuntimeConfigAuditLog, RuntimeConfigRecord
 
@@ -24,6 +25,7 @@ class RuntimeConfigStore:
 
     def get(self, *, copy: bool = True) -> RuntimeConfigData:
         with self._lock:
+            self._normalize_dict_defaults(self._config)
             if copy:
                 return self._config.model_copy(deep=True)
             return self._config
@@ -38,13 +40,16 @@ class RuntimeConfigStore:
                     session.commit()
                     logger.info("Initialized runtime config from defaults")
                 else:
-                    self._config = RuntimeConfigData.model_validate_json(record.config_json)
+                    loaded = RuntimeConfigData.model_validate_json(record.config_json)
+                    self._normalize_dict_defaults(loaded)
+                    self._config = loaded
                     logger.info("Loaded runtime config from database (updated_at=%s)", record.updated_at)
             self._apply_side_effects()
             return self._config.model_copy(deep=True)
 
     def update(self, config: RuntimeConfigData, updated_by: str) -> RuntimeConfigData:
         with self._lock:
+            self._normalize_dict_defaults(config)
             with self._session_factory() as session:
                 self._persist(session, config, updated_by=updated_by)
                 session.commit()
@@ -105,6 +110,11 @@ class RuntimeConfigStore:
 
     def _apply_side_effects(self) -> None:
         return
+
+    @staticmethod
+    def _normalize_dict_defaults(config: RuntimeConfigData) -> None:
+        config.velocity_thresholds = merge_velocity_thresholds(config.velocity_thresholds)
+        config.score_weights = merge_score_weights(config.score_weights)
 
 
 def init_runtime_config_store(session_factory: sessionmaker, settings: Settings | None = None) -> RuntimeConfigStore:

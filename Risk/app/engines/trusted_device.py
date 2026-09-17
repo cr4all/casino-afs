@@ -20,10 +20,6 @@ def evaluate(event: CanonicalEvent) -> tuple[int, list[str]]:
 
     known_devices = service.trusted_device_count(user_id)
 
-    # First login for this user: no baseline yet (signup may register after allow/challenge).
-    if event.event_type == EventType.PLAYER_LOGIN and known_devices == 0:
-        return 0, []
-
     score = 0
     signals: list[str] = []
 

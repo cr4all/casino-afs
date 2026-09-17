@@ -22,10 +22,12 @@ When AFS runs via Docker on your machine, your backend connects over **localhost
 6. [Payment method fields (`payment_method_type` / `payment_method_key`)](#payment-method-fields-payment_method_type--payment_method_key)
 7. [Shared withdrawal methods (multi-account payout detection)](#shared-withdrawal-methods-multi-account-payout-detection)
 8. [AML blocklist screening (OFAC wallets & countries)](#aml-blocklist-screening-ofac-wallets--countries)
-9. [Step 3 — Async events (RabbitMQ)](#step-3--async-events-rabbitmq)
-10. [Step 4 — Consume actions (async enforcement)](#step-4--consume-actions-async-enforcement)
-11. [Minimal vs full integration](#minimal-vs-full-integration)
-12. [Quick test from PowerShell](#quick-test-from-powershell)
+9. [Licensed markets & country lists](#licensed-markets--country-lists)
+10. [Monitoring & debugging (admin)](#monitoring--debugging-admin)
+11. [Step 3 — Async events (RabbitMQ)](#step-3--async-events-rabbitmq)
+12. [Step 4 — Consume actions (async enforcement)](#step-4--consume-actions-async-enforcement)
+13. [Minimal vs full integration](#minimal-vs-full-integration)
+14. [Quick test from PowerShell](#quick-test-from-powershell)
 
 ---
 
@@ -196,6 +198,16 @@ Publish with routing key **`payment.deposit`** (same as `event_type`).
 | `referrer` | `string \| null` | no | Signup referrer |
 | `failure_reason` | `string \| null` | no | For `player.login.failed` / `player.signup.failed` |
 | `step_up_verification` | `object \| null` | no | Server-set after Cloudflare Turnstile siteverify (see below) |
+| `game` | `object \| null` | no | Live-casino bet leg — see [Hedged betting](#hedged-betting-live-casino) |
+
+#### `metadata.game`
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `selection` | **yes** | Bet side: `banker`, `player`, `tie`, … |
+| `round_id` | recommended | Same for all legs of one hand/round |
+| `table_id` | recommended | Table id (fallback if no `round_id`) |
+| `game_type` | optional | e.g. `baccarat` |
 
 #### `metadata.step_up_verification` (Turnstile challenge response)
 
@@ -304,6 +316,7 @@ def build_login_event(user_id: str, context: dict) -> dict:
 |-------------------------|---------------|
 | **Risk API (sync)** | `http://localhost:8001/evaluate` |
 | **Risk health / docs** | `http://localhost:8001/health` · `http://localhost:8001/docs` |
+| **Admin UI (runtime config + monitoring)** | `http://localhost:8001/admin` (password = `ADMIN_API_KEY` in `Risk/.env`) |
 | **Event schema** | `http://localhost:8001/integration/event-schema` |
 | **Publish async events** | RabbitMQ `amqp://casino:secret@10.10.51.60:5672/` → exchange `casino.events` |
 | **Consume enforcement actions** | RabbitMQ queue `risk.actions` on the same broker |
@@ -348,7 +361,7 @@ await fetch("/api/login", {
 | Field | Source |
 |-------|--------|
 | `context.ip` | Request IP |
-| `context.country` | Geo / user profile |
+| `context.country` | Geo / user profile (ISO 3166-1 alpha-2, uppercase, e.g. `DE`) |
 | `context.fingerprint` | From frontend (web) |
 | `context.device_id` | Native app |
 | `user.user_id`, email, phone | Your user record |
@@ -361,6 +374,8 @@ For web clients, serve FingerprintJS and the AFS helper from Risk:
 ```
 
 Schema reference: `GET http://localhost:8001/integration/device-context` · full payload types in [Canonical event payload](#canonical-event-payload-typed-schema)
+
+**Country code format:** always send `context.country` as **ISO 3166-1 alpha-2** (two letters, uppercase recommended), e.g. `DE`, `GB`, `MT`. This field drives [licensed-market checks](#licensed-markets--country-lists), [AML country blocklist](#aml-blocklist-screening-ofac-wallets--countries), and geo/IP scoring. Do not send full country names (`Germany`) or ISO-3 codes (`DEU`).
 
 ---
 
@@ -455,6 +470,44 @@ if result["decision"] == "challenge":
 | `game.bet` | Too many sequential bonus/free-spin bets | `sequential_game_bet_burst`, `high_sequential_game_bet_burst` |
 | `wallet.bet` | Too many sequential real-money bets | `sequential_wallet_bet_burst`, `high_sequential_wallet_bet_burst` |
 | `wallet.win` | Too many wins in sequence; win rate vs recent bets | `sequential_wallet_win_burst`, `high_win_rate_in_betting_sequence` |
+
+### Hedged betting (live casino)
+
+Detects **volume washing**: e.g. baccarat **banker 1000 + player 1000** on the **same round** — high transaction count, ~zero net loss.
+
+**Send on every `wallet.bet` / `game.bet`:**
+
+- `metadata.game.selection` — **required**
+- `metadata.game.round_id` — **strongly recommended** (same value for both legs)
+- `metadata.game.table_id`, `game_type` — optional
+- `transaction.amount` — **required**
+
+Works on sync `POST /evaluate` and async `casino.events`. For platform envelopes, put `game` under `data.metadata.game` (or `data.game`). `bet_side` is accepted as an alias for `selection`.
+
+```json
+{
+  "event_type": "wallet.bet",
+  "user": { "user_id": "player_123" },
+  "transaction": { "amount": 1000.0 },
+  "metadata": {
+    "channel": "api",
+    "game": {
+      "round_id": "hand_8821",
+      "table_id": "baccarat_table_7",
+      "game_type": "baccarat",
+      "selection": "banker"
+    }
+  }
+}
+```
+
+Send the **player** leg with the same `round_id` and matching `amount`.
+
+**Signals:** `opposite_side_bets_same_round`, `repeated_hedged_rounds`, `hedged_bet_volume_washing` (and high/critical tiers).
+
+**Admin:** **Hedged betting** tab — opposite pairs (default `[["banker","player"]]`), amount tolerance, thresholds.
+
+**Your backend:** treat flagged rounds as **ineligible volume** for transaction-count rewards; AFS scores only.
 
 Use a **unique UUID** for every `event_id`.
 
@@ -922,7 +975,7 @@ All settings are under **`/admin` → AML & Transactions** (no redeploy needed):
 | **Manual bank accounts** | IBANs / bank account ids to block (one per line) |
 | **Manual e-wallet accounts** | E-wallet ids or emails to block (one per line) |
 | **Manual card payouts** | Card tokens / payout refs to block (one per line) |
-| **Manual blocklisted countries** | Extra ISO codes (one per line, e.g. `IR`, `KP`) |
+| **Manual blocklisted countries** | Extra ISO-2 codes to block (country multiselect) |
 
 The panel also shows **Blocklist sync status** and a **Sync OFAC lists now** button.
 
@@ -968,6 +1021,135 @@ def build_crypto_withdraw_event(user_id: str, wallet: str, amount: float, contex
         "metadata": {"channel": "web"},
     }
 ```
+
+---
+
+## Licensed markets & country lists
+
+AFS uses **`context.country`** (ISO-2) to enforce **where your brand is licensed to operate** and to apply **country-based risk lists**. Configure these in the admin UI — no redeploy needed.
+
+### Operator — licensed markets
+
+**Admin:** `/admin` → **Operator** → **Licensed markets** (searchable country multiselect)
+
+Select every jurisdiction where your operator holds a gambling licence. AFS compares `context.country` on incoming events against this list.
+
+| Event | When country **not** in licensed markets | Signal |
+|-------|------------------------------------------|--------|
+| `player.signup` | Player registers from unlicensed geo | `unlicensed_jurisdiction` (+45 score) |
+| `payment.deposit` | Deposit from unlicensed geo | `unlicensed_jurisdiction`, `deposit_from_unlicensed_market` |
+| `wallet.bet`, `game.bet` | Bet from unlicensed geo | `unlicensed_jurisdiction` |
+
+**Your backend must send `context.country`** on signup, deposit, and bet events (server-side geo or verified user profile). Without it, licensed-market checks cannot run.
+
+Default licensed markets (if unset): `DE, MT, GB, SE, FI, NL, AT, IE`. Override via admin or `LICENSED_MARKETS` env at Risk startup.
+
+### Lists tab — high-risk and sanctioned countries
+
+**Admin:** `/admin` → **Lists**
+
+| List | Purpose | Typical outcome |
+|------|---------|-----------------|
+| **High-risk countries** | Elevated fraud-rate jurisdictions | Adds score on geo/IP checks — **not** an automatic block (`high_risk_country`, `sanctioned_country_ip_context`) |
+| **Sanctioned countries** | Gambling-prohibited or compliance-blocked jurisdictions | **Hard block** on money events (`sanctioned_country` score 90) when country matches |
+
+Both lists use the same **country multiselect** UI (ISO-2 search + checkboxes).
+
+**Sanctioned countries** are also merged into [AML country blocklist](#aml-blocklist-screening-ofac-wallets--countries) when **Include Lists tab sanctioned countries** is enabled under AML & Transactions.
+
+### How the layers fit together
+
+```mermaid
+flowchart TD
+    C["context.country (ISO-2)"] --> L["Licensed markets\n(Operator tab)"]
+    C --> H["High-risk countries\n(Lists tab)"]
+    C --> S["Sanctioned countries\n(Lists tab)"]
+    C --> A["AML country blocklist\n(OFAC sync + manual + Lists)"]
+    L --> U["unlicensed_jurisdiction"]
+    H --> R["high_risk_country\n(score boost)"]
+    S --> B["sanctioned_country\n(hard block)"]
+    A --> BC["blocklisted_country\n(hard block)"]
+```
+
+### Backend checklist
+
+- [ ] Configure **Licensed markets** in admin to match your actual gambling licences
+- [ ] Send `context.country` (ISO-2) on `player.signup`, `player.login`, `payment.deposit`, `payment.withdraw`, and bets when country is known
+- [ ] Review **Lists → sanctioned countries** and **AML → country blocklist** together — both can block the same country via different signals
+- [ ] Treat `unlicensed_jurisdiction` as a compliance signal on signup/deposit/bet; tune decision thresholds under **Decision** if needed
+
+---
+
+## Monitoring & debugging (admin)
+
+Use the admin UI during integration and go-live to confirm events are scored correctly.
+
+### Access
+
+1. Open **`http://localhost:8001/admin`** (or your Risk service URL + `/admin`)
+2. Enter the **Password** — same value as `ADMIN_API_KEY` in `Risk/.env` (or `docker-compose.yml` for Docker)
+
+### Dashboard tab
+
+Live metrics from scored evaluate logs and Orchestrator audit:
+
+| Metric | Source |
+|--------|--------|
+| Betting volume & active bettors | `wallet.bet` / `game.bet` in evaluate logs |
+| Blocks, challenges, critical counts | Decision breakdown across scored events |
+| Recent block/challenge/critical actions | High-risk rows with user, score, signals |
+| Top signals & event types | Aggregated from the selected time window |
+
+**Requires data:** enable logging (see below) and generate `/evaluate` or async traffic. Empty dashboard → enable **Logs** tab sync logging, save, then retry test calls.
+
+**Admin API:**
+
+```http
+GET /api/admin/dashboard/metrics?hours=24&bucket_minutes=5
+Authorization: Bearer <ADMIN_API_KEY>
+```
+
+Query params: `hours` (0.25–168), `bucket_minutes` (1–60).
+
+### Logs tab — request/response viewer
+
+Enable during integration to inspect every scored `/evaluate` call and async RabbitMQ message:
+
+1. `/admin` → **Logs** tab
+2. Enable **Sync request/response logging** and/or **Async request/response logging**
+3. **Save changes**
+4. Generate traffic — entries appear in the log table (filter by channel, status, `event_id`)
+
+**Admin API:**
+
+```http
+GET /api/admin/logs?channel=sync&limit=50&offset=0
+GET /api/admin/logs/{log_id}
+Authorization: Bearer <ADMIN_API_KEY>
+```
+
+Turn logging **off** in production if volume is high — it writes to Postgres.
+
+### Other admin APIs (integration helpers)
+
+```http
+GET  /api/admin/config              # full runtime config JSON
+PUT  /api/admin/config              # update config (same shape as GET)
+GET  /api/admin/config/audit        # recent config changes
+GET  /api/admin/blocklist/status    # OFAC sync status
+POST /api/admin/blocklist/sync      # trigger OFAC wallet + country sync
+```
+
+All require `Authorization: Bearer <ADMIN_API_KEY>`.
+
+### Integration smoke-test workflow
+
+1. Configure **Operator → Licensed markets** and **Decision** thresholds
+2. Enable **Logs → sync logging**, save
+3. Run [Quick test](#quick-test-from-powershell) curls
+4. Open **Dashboard** — confirm events scored, decisions visible
+5. Open **Logs** — inspect request/response JSON for missing `context.country` or payment fields
+6. Disable sync logging before high-traffic production (optional)
 
 ---
 
@@ -1111,7 +1293,8 @@ Example action message:
 - [ ] Backend validates payload before send (JSON Schema / TypedDict)
 - [ ] Backend calls `POST http://localhost:8001/evaluate` with `player.*` / `payment.*` types
 - [ ] Withdrawals include `transaction.payment_method_type` and `transaction.payment_method_key`
-- [ ] Send `context.country` on signup, login, deposit, and withdrawal (for AML blocklist)
+- [ ] Send `context.country` (ISO-2) on signup, login, deposit, and withdrawal — see [Licensed markets](#licensed-markets--country-lists)
+- [ ] Configure **Operator → Licensed markets** in `/admin` to match your licences
 - [ ] Backend enforces `allow` / `challenge` / `block`
 
 **Full (sync + async)** — audit trail + async enforcement:
@@ -1120,6 +1303,7 @@ Example action message:
 - [ ] Platform publishes `PlatformEventEnvelope` to `casino.events` (or AFS consumes existing feed)
 - [ ] Publish `player.login.failed` / `player.signup.failed` to `casino.events`
 - [ ] Consumer on `risk.actions` in your backend
+- [ ] Enable admin **Logs** sync/async logging during integration; use **Dashboard** to verify traffic — see [Monitoring & debugging](#monitoring--debugging-admin)
 
 ---
 
@@ -1158,8 +1342,11 @@ Your backend uses **contract `event_type` names** everywhere:
 
 - **Sync gates:** `POST /evaluate` with `player.signup`, `player.login`, `payment.deposit`, `payment.withdraw`
 - **Payment methods:** `payment_method_type` + `payment_method_key` on deposits/withdrawals — see [Payment method fields](#payment-method-fields-payment_method_type--payment_method_key)
+- **Country:** `context.country` as ISO-2 on auth and money events — configure [Licensed markets](#licensed-markets--country-lists) and Lists tab in admin
+- **Live casino hedging:** `metadata.game.selection` + `round_id` on `wallet.bet` / `game.bet` — see [Hedged betting](#hedged-betting-live-casino)
 - **Withdrawals:** shared payout detection toggle in `/admin` → Withdrawal Methods
 - **AML blocklist:** send `context.country` + crypto wallet on money events; toggle and sync in `/admin` → AML & Transactions
+- **Monitoring:** `/admin` → **Dashboard** + **Logs** (enable sync logging during integration) — see [Monitoring & debugging](#monitoring--debugging-admin)
 - **Async platform:** `PlatformEventEnvelope` on `casino.events` (`wallet.bet`, `payment.deposit`, …)
 - **Async auth failures:** `player.login.failed`, `player.signup.failed`
 - **Enforcement:** HTTP `decision` (sync) or `risk.actions` queue (async)

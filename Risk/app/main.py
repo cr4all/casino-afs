@@ -15,6 +15,7 @@ from app.infrastructure.evaluate_request_logger import init_evaluate_request_log
 from app.infrastructure.ip_intelligence import init_ip_intelligence_service
 from app.infrastructure.redis_client import create_redis_client
 from app.infrastructure.velocity_store import init_velocity_store
+from app.infrastructure.hedge_betting import init_hedge_betting_store
 from app.messaging.consumer import EventConsumer
 from app.messaging.publisher import ResultPublisher
 from app.runtime_config import get_runtime_config, init_runtime_config_store
@@ -114,6 +115,11 @@ async def lifespan(app: FastAPI):
         redis_client=redis_client,
         ip_ttl=runtime.features.redis_velocity_ip_ttl,
         domain_ttl=runtime.features.redis_velocity_domain_ttl,
+    )
+
+    init_hedge_betting_store(
+        redis_enabled=runtime.features.redis_enabled and redis_client is not None,
+        redis_client=redis_client,
     )
 
     init_ip_intelligence_service(

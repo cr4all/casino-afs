@@ -79,7 +79,7 @@ def test_evaluator_withdrawal_high_amount(evaluator):
 
 def test_evaluator_returns_all_engines(evaluator, good_signup_event):
     result = evaluator.evaluate(good_signup_event, "sync")
-    assert len(result.engines) == 13
+    assert len(result.engines) == 16
     assert result.latency_ms >= 0
 
 

@@ -1,5 +1,7 @@
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.runtime_config.thresholds import merge_score_weights, merge_velocity_thresholds
+
 
 class DecisionThresholds(BaseModel):
     challenge: int = Field(31, ge=0, le=100)
@@ -113,6 +115,13 @@ class LoggingConfig(BaseModel):
     async_enabled: bool = False
 
 
+class DashboardConfig(BaseModel):
+    notifications_enabled: bool = True
+    notify_on_block: bool = True
+    notify_on_critical: bool = True
+    poll_interval_seconds: int = Field(30, ge=10, le=300)
+
+
 class BettingPatternConfig(BaseModel):
     enabled: bool = True
     burst_window_seconds: int = Field(300, ge=60, le=3600)
@@ -151,6 +160,37 @@ class BettingPatternConfig(BaseModel):
                 raise ValueError(f"{label} thresholds must be ordered: medium <= high <= critical")
         if self.win_rate_high_ratio > self.win_rate_critical_ratio:
             raise ValueError("win_rate_high_ratio must be <= win_rate_critical_ratio")
+        return self
+
+
+class HedgeBettingConfig(BaseModel):
+    enabled: bool = True
+    window_seconds: int = Field(3600, ge=60, le=86400)
+    round_leg_ttl_seconds: int = Field(600, ge=60, le=3600)
+    time_pair_window_seconds: int = Field(15, ge=1, le=120)
+    require_round_id: bool = False
+    opposite_selection_groups: list[list[str]] = Field(
+        default_factory=lambda: [["banker", "player"]]
+    )
+    amount_match_tolerance_percent: float = Field(10.0, ge=0.0, le=100.0)
+    opposite_side_same_round_score: int = Field(50, ge=0, le=100)
+    hedged_round_medium: int = Field(3, ge=1, le=1000)
+    hedged_round_high: int = Field(8, ge=1, le=1000)
+    hedged_round_critical: int = Field(15, ge=1, le=1000)
+    hedged_round_medium_score: int = Field(30, ge=0, le=100)
+    hedged_round_high_score: int = Field(50, ge=0, le=100)
+    hedged_round_critical_score: int = Field(70, ge=0, le=100)
+    volume_washing_enabled: bool = True
+    min_gross_volume: float = Field(5000.0, ge=0.0)
+    min_hedged_gross_ratio: float = Field(0.5, ge=0.0, le=1.0)
+    volume_washing_score: int = Field(55, ge=0, le=100)
+
+    @model_validator(mode="after")
+    def validate_threshold_order(self) -> "HedgeBettingConfig":
+        if not (self.hedged_round_medium <= self.hedged_round_high <= self.hedged_round_critical):
+            raise ValueError("hedged_round thresholds must be ordered: medium <= high <= critical")
+        if not self.opposite_selection_groups:
+            raise ValueError("opposite_selection_groups must contain at least one group")
         return self
 
 
@@ -198,8 +238,10 @@ class RuntimeConfigData(BaseModel):
     critical_signals: list[str] = Field(default_factory=list)
     withdrawal_method: WithdrawalMethodConfig = Field(default_factory=WithdrawalMethodConfig)
     betting_patterns: BettingPatternConfig = Field(default_factory=BettingPatternConfig)
+    hedge_betting: HedgeBettingConfig = Field(default_factory=HedgeBettingConfig)
     step_up_verification: StepUpVerificationConfig = Field(default_factory=StepUpVerificationConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    dashboard: DashboardConfig = Field(default_factory=DashboardConfig)
     features: FeatureFlags = Field(default_factory=FeatureFlags)
 
     @model_validator(mode="before")
@@ -215,6 +257,13 @@ class RuntimeConfigData(BaseModel):
             "async_enabled": file_enabled,
         }
         return data
+
+    @model_validator(mode="after")
+    def merge_dict_defaults(self) -> "RuntimeConfigData":
+        """Fill missing velocity/score keys when admin saves a partial JSON object."""
+        self.velocity_thresholds = merge_velocity_thresholds(self.velocity_thresholds)
+        self.score_weights = merge_score_weights(self.score_weights)
+        return self
 
     def list_set(self, name: str) -> set[str]:
         values = getattr(self.lists, name)

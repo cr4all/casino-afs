@@ -1,0 +1,590 @@
+{
+  "decision_thresholds.challenge": {
+    "label": "Challenge threshold",
+    "description": "Minimum score for medium risk. Outcome is usually challenge (Turnstile, MFA, manual review) instead of allow.",
+    "example": "40 — a player with score 39 is allow; score 40+ is challenge unless a hard-block signal fired."
+  },
+  "decision_thresholds.high": {
+    "label": "High threshold",
+    "description": "Minimum score for high risk. Login/signup often block; deposits/withdrawals/bets may block or need extra checks.",
+    "example": "61 — score 60 stays medium/challenge; score 61+ is high risk."
+  },
+  "decision_thresholds.block": {
+    "label": "Block threshold (critical)",
+    "description": "Minimum score for critical risk. Usually results in block unless a hard-block signal on the Decision tab already forced block.",
+    "example": "85 — score 84 may still be high; score 85+ is critical/block."
+  },
+  "operator.platform_name": {
+    "label": "Platform name",
+    "description": "Internal label for this operator instance. Used in logs and audit entries — not sent to players.",
+    "example": "DoveBet EU",
+    "signal": "unlicensed_jurisdiction (when country not in licensed markets)"
+  },
+  "operator.licensed_markets": {
+    "label": "Licensed markets",
+    "description": "Countries where you hold a gambling licence. Select from the list — checked on signup, deposit, and bet using player country or IP geo.",
+    "example": "Select DE, GB, MT, SE — a player from FR with no licence raises unlicensed_jurisdiction.",
+    "signal": "unlicensed_jurisdiction"
+  },
+  "ip_intel.enabled": {
+    "label": "Enabled",
+    "description": "Master toggle. When off, no external IP lookups run and no vpn/proxy/tor/hosting signals are emitted.",
+    "example": "Off during local dev if you don't want outbound API calls.",
+    "signal": "vpn_detected, proxy_detected, tor_exit_node, hosting_provider_ip"
+  },
+  "ip_intel.cache_ttl_seconds": {
+    "label": "Cache TTL (seconds)",
+    "description": "How long each IP lookup result is cached in Redis or memory before re-fetching.",
+    "example": "3600 — same IP checked once per hour; lowers API usage but VPN toggles may lag up to 1 hour."
+  },
+  "ip_intel.timeout_seconds": {
+    "label": "Lookup timeout (seconds)",
+    "description": "Max wait per external IP API request. Affects evaluate latency when cache misses.",
+    "example": "2.0 — fail or fail-open quickly; 5.0 — more time for slow APIs."
+  },
+  "ip_intel.fail_open": {
+    "label": "Fail open on lookup error",
+    "description": "When on, API timeout/error does not add risk. When off, lookup failure is treated as suspicious (VPN/proxy suspected).",
+    "example": "On in production if IP API downtime must not block logins; off if you prefer strict behaviour."
+  },
+  "aml.single_deposit_threshold": {
+    "label": "Single deposit review",
+    "description": "Single payment.deposit at or above this amount triggers compliance review tier 1.",
+    "example": "2000 — deposit of €2,000 raises elevated_deposit_aml_review.",
+    "signal": "elevated_deposit_aml_review"
+  },
+  "aml.large_deposit_threshold": {
+    "label": "Large deposit review",
+    "description": "Highest deposit AML tier — for very large single deposits.",
+    "example": "10000 — deposit of €10,000 raises large_deposit_aml_review.",
+    "signal": "large_deposit_aml_review"
+  },
+  "aml.withdrawal_review_threshold": {
+    "label": "Withdrawal review",
+    "description": "Single payment.withdraw at or above this amount triggers cashout review signals.",
+    "example": "1000 — withdrawal of €1,000 raises elevated_withdrawal_review and cashout_review_required.",
+    "signal": "elevated_withdrawal_review, cashout_review_required"
+  },
+  "aml.structuring_threshold": {
+    "label": "Structuring threshold",
+    "description": "Flags deposits between 90% and 100% of this amount — pattern used to stay just under reporting limits.",
+    "example": "3000 — deposit of €2,850 (95% of 3000) raises structuring_threshold_deposit.",
+    "signal": "structuring_threshold_deposit"
+  },
+  "aml.micro_deposit_max": {
+    "label": "Micro deposit max",
+    "description": "Deposits strictly below this amount trigger bonus-farming / payment-testing detection.",
+    "example": "10 — deposit of €5 raises micro_deposit_bonus_farming.",
+    "signal": "micro_deposit_bonus_farming"
+  },
+  "aml.high_stake_bet_threshold": {
+    "label": "High stake bet",
+    "description": "Single wallet.bet / game.bet at or above this amount. Bets above €100 (fixed engine rule) also raise elevated_stake_bet.",
+    "example": "500 — bet of €500 raises high_stake_bet.",
+    "signal": "high_stake_bet, elevated_stake_bet"
+  },
+  "aml.blocklist.enabled": {
+    "label": "Blocklist screening enabled",
+    "description": "Master toggle for all AML blocklist engines (crypto, bank, country, etc.).",
+    "example": "Off only if you run blocklist checks entirely outside AFS."
+  },
+  "aml.blocklist.crypto_enabled": {
+    "label": "Crypto wallet screening",
+    "description": "Check crypto payout addresses on payment.withdraw / payment.deposit against OFAC sync + manual list.",
+    "example": "Send payment_method_type: crypto and payment_method_key: 0xabc… on withdraw evaluate.",
+    "signal": "ofac_sanctioned_wallet, blocklisted_payout_address"
+  },
+  "aml.blocklist.bank_enabled": {
+    "label": "Bank account screening",
+    "description": "Check IBAN/bank account ids on bank payouts.",
+    "example": "payment_method_type: bank, payment_method_key: DE89370400440532013000",
+    "signal": "blocklisted_payout_address"
+  },
+  "aml.blocklist.ewallet_enabled": {
+    "label": "E-wallet screening",
+    "description": "Check e-wallet ids or emails on e-wallet payouts.",
+    "example": "payment_method_type: ewallet, payment_method_key: skrill_user@email.com",
+    "signal": "blocklisted_payout_address"
+  },
+  "aml.blocklist.card_enabled": {
+    "label": "Card payout screening",
+    "description": "Check card tokens or payout references on card withdrawals.",
+    "example": "payment_method_type: card, payment_method_key: card_token_abc123",
+    "signal": "blocklisted_payout_address"
+  },
+  "aml.blocklist.country_enabled": {
+    "label": "Country blocklist screening",
+    "description": "Block signup/login/deposit/withdraw when player country matches OFAC sync, Lists tab, or manual countries.",
+    "example": "Player country KP with country blocklist enabled → blocklisted_country.",
+    "signal": "blocklisted_country"
+  },
+  "aml.blocklist.sync_ofac_crypto_enabled": {
+    "label": "Auto-sync OFAC crypto wallets",
+    "description": "Pull U.S. Treasury SDN crypto addresses daily. Requires outbound HTTPS from Risk container.",
+    "example": "Use Sync OFAC lists now button below after enabling."
+  },
+  "aml.blocklist.sync_ofac_countries_enabled": {
+    "label": "Auto-sync OFAC countries",
+    "description": "Load Treasury-derived sanctioned country ISO codes into Postgres on each sync.",
+    "example": "Runs on schedule (sync interval) and on manual sync."
+  },
+  "aml.blocklist.sync_interval_hours": {
+    "label": "Sync interval (hours)",
+    "description": "How often the background job refreshes OFAC crypto and country lists.",
+    "example": "24 — sync once per day; 6 for more frequent updates."
+  },
+  "aml.blocklist.fail_open": {
+    "label": "Fail open if sync unavailable",
+    "description": "When on, empty/stale blocklist DB does not block payouts. When off, missing sync data is treated as high risk.",
+    "example": "On for production resilience; off for maximum compliance strictness."
+  },
+  "aml.blocklist.use_lists_sanctioned_countries": {
+    "label": "Include Lists tab sanctioned countries",
+    "description": "Merge Lists → sanctioned countries into country blocklist checks (in addition to OFAC sync and manual).",
+    "example": "Add IR in Lists tab + enable this → Iranian players hit sanctioned_country.",
+    "signal": "sanctioned_country"
+  },
+  "aml.blocklist.crypto_hit_score": {
+    "label": "Payout blocklist hit score",
+    "description": "Risk score added when any payout destination (crypto/bank/e-wallet/card) matches a blocklist entry.",
+    "example": "90 — usually pushes decision toward block when combined with other signals."
+  },
+  "aml.blocklist.country_hit_score": {
+    "label": "Country blocklist hit score",
+    "description": "Risk score when player country matches blocklist.",
+    "example": "90 — default; lower to 70 if you prefer challenge over block."
+  },
+  "aml.blocklist.manual_crypto_wallets": {
+    "label": "Manual crypto wallets",
+    "description": "Extra wallet addresses to block — one per line. Checked on crypto payouts in addition to OFAC sync.",
+    "example": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb\\nbc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"
+  },
+  "aml.blocklist.manual_bank_accounts": {
+    "label": "Manual bank accounts",
+    "description": "IBANs or bank account identifiers to block — one per line.",
+    "example": "DE89370400440532013000\\nGB82WEST12345698765432"
+  },
+  "aml.blocklist.manual_ewallet_accounts": {
+    "label": "Manual e-wallet accounts",
+    "description": "E-wallet ids or emails to block — one per line.",
+    "example": "skrill:fraud_ring_01\\nneteller:abuse@test.com"
+  },
+  "aml.blocklist.manual_card_accounts": {
+    "label": "Manual card payouts",
+    "description": "Card tokens or payout references to block — one per line.",
+    "example": "card_token_stolen_batch_42\\nvisa_payout_ref_99102"
+  },
+  "aml.blocklist.manual_countries": {
+    "label": "Manual blocklisted countries",
+    "description": "Countries to block on signup/login/deposit/withdraw. Merged with OFAC sync and Lists tab.",
+    "example": "Select IR, KP, SY — players from those countries hit blocklisted_country when screening is on.",
+    "signal": "blocklisted_country"
+  },
+  "withdrawal_method.enabled": {
+    "label": "Enabled",
+    "description": "When off, shared payout destination checks are skipped.",
+    "example": "Requires payment_method_type + payment_method_key on every payment.withdraw evaluate.",
+    "signal": "shared_withdrawal_method, multiple_accounts_shared_payout_method, multi_account_shared_withdrawal_method"
+  },
+  "withdrawal_method.distinct_users_medium": {
+    "label": "Distinct users (medium)",
+    "description": "How many different user_ids must withdraw to the same payout key before medium tier fires.",
+    "example": "2 — user A and user B both withdraw to IBAN DE89… → shared_withdrawal_method.",
+    "signal": "shared_withdrawal_method"
+  },
+  "withdrawal_method.distinct_users_high": {
+    "label": "Distinct users (high)",
+    "description": "Distinct users threshold for high tier multi-account payout abuse.",
+    "example": "3 — three accounts sharing one Skrill email.",
+    "signal": "multiple_accounts_shared_payout_method"
+  },
+  "withdrawal_method.distinct_users_critical": {
+    "label": "Distinct users (critical)",
+    "description": "Distinct users threshold for critical tier — usually forces block when listed as a hard-block signal on the Decision tab.",
+    "example": "4 — four accounts, same crypto wallet → multi_account_shared_withdrawal_method (hard block).",
+    "signal": "multi_account_shared_withdrawal_method"
+  },
+  "withdrawal_method.medium_score": {
+    "label": "Medium score",
+    "description": "Risk score added when distinct-users medium threshold is reached.",
+    "example": "35 — combined with other engines to reach challenge/high."
+  },
+  "withdrawal_method.high_score": {
+    "label": "High score",
+    "description": "Risk score added when distinct-users high threshold is reached.",
+    "example": "55"
+  },
+  "withdrawal_method.critical_score": {
+    "label": "Critical score",
+    "description": "Risk score added when distinct-users critical threshold is reached.",
+    "example": "80 — often enough alone to block if decision threshold is ≤80."
+  },
+  "betting_patterns.enabled": {
+    "label": "Enabled",
+    "description": "Master toggle for sequential burst counters and win-rate ratio checks.",
+    "example": "Off disables all signals in this tab."
+  },
+  "betting_patterns.burst_window_seconds": {
+    "label": "Burst window (seconds)",
+    "description": "Rolling time window for all burst counters and win-rate calculation.",
+    "example": "300 — 10 game.bets in 5 minutes counts toward burst; window slides on each event."
+  },
+  "betting_patterns.game_bet_burst_medium": {
+    "label": "game.bet burst — medium",
+    "description": "Sequential game.bet events in window before medium burst signal.",
+    "example": "10 — 10 bonus spins placed back-to-back within 300s.",
+    "signal": "sequential_game_bet_burst"
+  },
+  "betting_patterns.game_bet_burst_high": {
+    "label": "game.bet burst — high",
+    "description": "Sequential game.bet count for high tier burst.",
+    "example": "20",
+    "signal": "sequential_game_bet_burst (higher score tier)"
+  },
+  "betting_patterns.game_bet_burst_critical": {
+    "label": "game.bet burst — critical",
+    "description": "Sequential game.bet count for critical tier burst.",
+    "example": "35",
+    "signal": "sequential_game_bet_burst (critical score tier)"
+  },
+  "betting_patterns.wallet_bet_burst_medium": {
+    "label": "wallet.bet burst — medium",
+    "description": "Sequential wallet.bet (real-money) events in window before medium burst.",
+    "example": "20 — rapid live-casino betting bot pattern.",
+    "signal": "sequential_wallet_bet_burst"
+  },
+  "betting_patterns.wallet_bet_burst_high": {
+    "label": "wallet.bet burst — high",
+    "description": "Sequential wallet.bet count for high tier.",
+    "example": "40",
+    "signal": "sequential_wallet_bet_burst (higher score tier)"
+  },
+  "betting_patterns.wallet_bet_burst_critical": {
+    "label": "wallet.bet burst — critical",
+    "description": "Sequential wallet.bet count for critical tier.",
+    "example": "60",
+    "signal": "sequential_wallet_bet_burst (critical score tier)"
+  },
+  "betting_patterns.wallet_win_burst_medium": {
+    "label": "wallet.win burst — medium",
+    "description": "Sequential wallet.win credits in window before medium win burst.",
+    "example": "8 — many wins credited in quick succession.",
+    "signal": "sequential_wallet_win_burst"
+  },
+  "betting_patterns.wallet_win_burst_high": {
+    "label": "wallet.win burst — high",
+    "description": "Sequential wallet.win count for high tier.",
+    "example": "15",
+    "signal": "sequential_wallet_win_burst (higher score tier)"
+  },
+  "betting_patterns.wallet_win_burst_critical": {
+    "label": "wallet.win burst — critical",
+    "description": "Sequential wallet.win count for critical tier.",
+    "example": "25",
+    "signal": "sequential_wallet_win_burst (critical score tier)"
+  },
+  "betting_patterns.win_rate_min_bets": {
+    "label": "Win rate — min bets",
+    "description": "Minimum wallet.bet + game.bet count in window before win-rate ratio is evaluated.",
+    "example": "5 — need at least 5 bets; 4 wins / 4 bets is ignored until 5th bet arrives."
+  },
+  "betting_patterns.win_rate_high_ratio": {
+    "label": "Win rate — high ratio",
+    "description": "Wins ÷ bets ratio that triggers high win-rate signal (0–1).",
+    "example": "0.75 — 6 wins out of 8 bets (75%) in window raises high_win_rate_in_betting_sequence.",
+    "signal": "high_win_rate_in_betting_sequence"
+  },
+  "betting_patterns.win_rate_critical_ratio": {
+    "label": "Win rate — critical ratio",
+    "description": "Wins ÷ bets ratio for critical win-rate tier.",
+    "example": "0.90 — 9 wins out of 10 bets raises critical_win_rate_in_betting_sequence.",
+    "signal": "critical_win_rate_in_betting_sequence"
+  },
+  "hedge_betting.enabled": {
+    "label": "Enabled",
+    "description": "Master toggle for hedged-round detection and volume-washing ratio.",
+    "example": "Off if you do not send metadata.game.selection and round_id yet."
+  },
+  "hedge_betting.window_seconds": {
+    "label": "Stats window (seconds)",
+    "description": "Rolling window for counting repeated hedged rounds and gross volume ratio.",
+    "example": "3600 — count hedged rounds in the last hour per user."
+  },
+  "hedge_betting.round_leg_ttl_seconds": {
+    "label": "Round leg TTL (seconds)",
+    "description": "How long the first bet leg is stored while waiting for the opposite side on the same round_id.",
+    "example": "600 — banker bet at 12:00:00; player bet at 12:09:59 still matches; at 12:10:01 leg expires."
+  },
+  "hedge_betting.time_pair_window_seconds": {
+    "label": "Time-pair window (seconds)",
+    "description": "Fallback grouping bucket when round_id is missing but table_id is present — bets within this window on same table may pair.",
+    "example": "15 — only used if require_round_id is off and round_id absent."
+  },
+  "hedge_betting.require_round_id": {
+    "label": "Require round_id",
+    "description": "When on, hedge checks run only if metadata.game.round_id is present. Recommended once your backend sends round_id.",
+    "example": "On in production — avoids false positives from time-pair fallback."
+  },
+  "hedge_betting.opposite_selection_groups": {
+    "label": "Opposite selection groups",
+    "description": "JSON array of groups. Selections in the same inner array are treated as opposites on the same round.",
+    "signal": "opposite_side_bets_same_round"
+  },
+  "hedge_betting.amount_match_tolerance_percent": {
+    "label": "Amount match tolerance (%)",
+    "description": "Opposite legs must have stakes within this percentage of each other.",
+    "example": "10 — banker €1000 + player €950 matches; player €800 does not."
+  },
+  "hedge_betting.opposite_side_same_round_score": {
+    "label": "Score — opposite sides same round",
+    "description": "Risk score when a single hedged round (opposite sides, matching amounts) is detected.",
+    "example": "50 — fires on first detected banker+player pair.",
+    "signal": "opposite_side_bets_same_round"
+  },
+  "hedge_betting.hedged_round_medium": {
+    "label": "Hedged rounds — medium",
+    "description": "Distinct hedged rounds in stats window before repeated-pattern signal (medium tier).",
+    "example": "3 — three separate hedged hands in one hour.",
+    "signal": "repeated_hedged_rounds"
+  },
+  "hedge_betting.hedged_round_high": {
+    "label": "Hedged rounds — high",
+    "description": "Distinct hedged rounds for high tier.",
+    "example": "8",
+    "signal": "high_repeated_hedged_rounds"
+  },
+  "hedge_betting.hedged_round_critical": {
+    "label": "Hedged rounds — critical",
+    "description": "Distinct hedged rounds for critical tier.",
+    "example": "15",
+    "signal": "critical_hedged_bet_volume_washing"
+  },
+  "hedge_betting.volume_washing_enabled": {
+    "label": "Volume washing check",
+    "description": "When on, compare hedged gross bet volume to total gross bet volume in the stats window.",
+    "example": "Player bets €6000 hedged + €4000 normal in 1h → 60% hedged share.",
+    "signal": "hedged_bet_volume_washing"
+  },
+  "hedge_betting.min_gross_volume": {
+    "label": "Volume washing — min gross",
+    "description": "Minimum total bet volume in window before volume-washing ratio is evaluated.",
+    "example": "5000 — ignore ratio until player has at least €5000 gross bets in window."
+  },
+  "hedge_betting.min_hedged_gross_ratio": {
+    "label": "Volume washing — min hedged ratio",
+    "description": "Minimum hedged_gross ÷ total_gross ratio (0–1) to trigger volume washing signal.",
+    "example": "0.5 — 50% or more of gross volume is hedged → hedged_bet_volume_washing (hard block if listed on Decision tab).",
+    "signal": "hedged_bet_volume_washing"
+  },
+  "hedge_betting.volume_washing_score": {
+    "label": "Score — volume washing",
+    "description": "Risk score added when volume-washing ratio threshold is met.",
+    "example": "55 — combine with opposite_side score for higher total."
+  },
+  "step_up_verification.enabled": {
+    "label": "Enabled",
+    "description": "When off, step_up_verification metadata is ignored and challenge outcomes are not downgraded.",
+    "example": "On when your frontend shows Turnstile on challenge responses."
+  },
+  "step_up_verification.grant_ttl_days": {
+    "label": "Grant duration (days)",
+    "description": "How long a successful verification grant lasts for the same user_id + device fingerprint.",
+    "example": "7 — player passes Turnstile once; subsequent logins allow for 7 days on same device."
+  },
+  "step_up_verification.max_verified_age_minutes": {
+    "label": "Max verified_at age (minutes)",
+    "description": "metadata.verified_at must be within this many minutes of the evaluate request timestamp.",
+    "example": "5 — siteverify at 12:00, evaluate at 12:06 → grant rejected as stale."
+  },
+  "step_up_verification.downgrade_challenge_to_allow": {
+    "label": "Downgrade challenge to allow",
+    "description": "When on, active grant changes challenge decision to allow. Never overrides block or critical signals.",
+    "example": "On — typical production setting after Turnstile pass."
+  },
+  "step_up_verification.allowed_hostnames": {
+    "label": "Allowed hostnames",
+    "description": "Optional Cloudflare hostname allowlist from siteverify response — one per line. Empty = skip check.",
+    "example": "casino.example.com\\nwww.casino.example.com"
+  },
+  "step_up_verification.applicable_event_types": {
+    "label": "Applicable event types",
+    "description": "Event types where step-up grant can downgrade challenge — one per line.",
+    "example": "player.login\\nplayer.signup\\npayment.deposit"
+  },
+  "fingerprint.required_channels": {
+    "label": "Required channels",
+    "description": "Channels where context.fingerprint is expected. Missing value on these channels raises missing_fingerprint.",
+    "example": "web,mobile — signup on web without visitorId → missing_fingerprint.",
+    "signal": "missing_fingerprint"
+  },
+  "fingerprint.min_length": {
+    "label": "Min length",
+    "description": "Minimum valid FingerprintJS visitorId character length.",
+    "example": "10 — abc123 (6 chars) → malformed_fingerprint.",
+    "signal": "malformed_fingerprint"
+  },
+  "fingerprint.max_length": {
+    "label": "Max length",
+    "description": "Maximum valid visitorId length. Values outside min–max are rejected.",
+    "example": "64",
+    "signal": "malformed_fingerprint, invalid_fingerprint"
+  },
+  "fingerprint.suspicious_values": {
+    "label": "Suspicious values",
+    "description": "Known fake or placeholder fingerprint strings — one per line. Exact match fails validation.",
+    "example": "undefined\\nnull\\n00000000-0000-0000-0000-000000000000",
+    "signal": "invalid_fingerprint"
+  },
+  "lists.disposable_domains": {
+    "label": "Disposable email domains",
+    "description": "Throwaway email provider domains. Signup with these domains is usually hard-blocked.",
+    "example": "mailinator.com\\n10minutemail.com\\nguerrillamail.com",
+    "signal": "disposable_email"
+  },
+  "lists.high_risk_countries": {
+    "label": "High-risk countries",
+    "description": "Countries with elevated fraud rates. Adds score on geo/IP checks — not an automatic block.",
+    "example": "Select NG, GH, PK — raises high_risk_country on matching geo/IP context.",
+    "signal": "high_risk_country"
+  },
+  "lists.sanctioned_countries": {
+    "label": "Sanctioned countries",
+    "description": "Sanctioned or gambling-prohibited jurisdictions. Used when AML blocklist includes Lists tab.",
+    "example": "Select IR, KP, CU — raises sanctioned_country on money events and login.",
+    "signal": "sanctioned_country"
+  },
+  "lists.generic_names": {
+    "label": "Generic names",
+    "description": "Placeholder display names on signup/identity — one per line, case-insensitive.",
+    "example": "test\\nuser\\nadmin\\nPlayer",
+    "signal": "generic_name"
+  },
+  "lists.role_based_email_locals": {
+    "label": "Role-based email locals",
+    "description": "Email local parts (before @) that indicate non-personal accounts.",
+    "example": "admin\\nsupport\\ninfo\\nnoreply",
+    "signal": "role_based_email"
+  },
+  "lists.suspicious_email_tlds": {
+    "label": "Suspicious email TLDs",
+    "description": "Top-level domains associated with spam. Match when email ends with these TLDs.",
+    "example": ".xyz\\n.top\\n.click",
+    "signal": "suspicious_email_tld"
+  },
+  "lists.suspicious_email_local_tokens": {
+    "label": "Suspicious email local tokens",
+    "description": "Substrings in email local part that suggest throwaway or bot accounts.",
+    "example": "temp\\nspam\\nbot\\nfake",
+    "signal": "suspicious_email_pattern"
+  },
+  "lists.bot_user_agent_tokens": {
+    "label": "Bot user-agent tokens",
+    "description": "Substrings in User-Agent header indicating scripts or automation.",
+    "example": "curl\\npython-requests\\nheadless\\nscrapy",
+    "signal": "bot_user_agent"
+  },
+  "lists.emulator_ua_tokens": {
+    "label": "Emulator UA tokens",
+    "description": "User-Agent patterns for Android emulators or virtual devices.",
+    "example": "genymotion\\nbluestacks\\nsdk_gphone",
+    "signal": "emulator_detected"
+  },
+  "lists.suspicious_referrers": {
+    "label": "Suspicious referrers",
+    "description": "Exact referrer values treated as low-trust on signup.",
+    "example": "direct\\nunknown\\n(empty line for blank referrer)",
+    "signal": "suspicious_referrer"
+  },
+  "lists.bonus_abuse_referrer_tokens": {
+    "label": "Bonus abuse referrer tokens",
+    "description": "Substrings in signup referrer URL linked to bonus-hunting or affiliate abuse sites.",
+    "example": "free-spins\\nno-deposit\\nbonus-hunter",
+    "signal": "bonus_abuse_referrer"
+  },
+  "velocity_thresholds": {
+    "label": "Velocity thresholds (JSON)",
+    "description": "Map of threshold name → max count. Suffix _medium/_high/_critical selects tier. Do not delete keys — engines expect the full set.",
+    "example": "{\\n  \"login_ip_medium\": 5,\\n  \"login_ip_high\": 15,\\n  \"login_ip_critical\": 30,\\n  \"signup_ip_critical\": 10,\\n  \"deposit_user_high\": 6\\n}",
+    "signal": "medium_login_ip_velocity, bulk_login_attack, bulk_signup_attack, rapid_deposit_activity, …"
+  },
+  "critical_signals": {
+    "label": "Hard-block signals",
+    "description": "Exact signal name strings emitted by engines — one per line. Must match case exactly.",
+    "example": "disposable_email\\nbulk_login_attack\\nhedged_bet_volume_washing\\nmulti_account_shared_withdrawal_method"
+  },
+  "features.sync_publish_audit": {
+    "label": "Publish audit on sync /evaluate",
+    "description": "When on, synchronous POST /evaluate results are also published to RabbitMQ for Orchestrator audit.",
+    "example": "On when Orchestrator must see sync API decisions in the same pipeline as async events."
+  },
+  "features.decision_cache_ttl_seconds": {
+    "label": "Decision cache TTL (seconds)",
+    "description": "Cache identical event_id decisions in Redis to avoid re-scoring duplicates. Requires Redis enabled.",
+    "example": "300 — same event_id within 5 minutes returns cached decision; 0 = disabled."
+  },
+  "features.redis_enabled": {
+    "label": "Redis enabled",
+    "description": "Use Redis for velocity counters, hedge/betting stores, and optional decision cache.",
+    "example": "Off for single-instance dev (in-memory counters); on for production multi-instance."
+  },
+  "features.redis_velocity_ip_ttl": {
+    "label": "Redis IP velocity TTL",
+    "description": "Sliding window length (seconds) for IP-based velocity keys in Redis.",
+    "example": "3600 — login_ip_high counts logins from one IP in the last hour."
+  },
+  "features.redis_velocity_domain_ttl": {
+    "label": "Redis domain velocity TTL",
+    "description": "Sliding window length for email-domain signup velocity counters.",
+    "example": "86400 — signup_domain_* counts signups per domain in 24h."
+  },
+  "features.rabbitmq_enabled": {
+    "label": "RabbitMQ consumer enabled",
+    "description": "Start async consumer that scores events from the casino platform exchange/queue.",
+    "example": "On when platform publishes wallet.bet, player.login, etc. to casino.events."
+  },
+  "features.rabbitmq_publish_results": {
+    "label": "Publish results to Orchestrator",
+    "description": "Publish scored EvaluateResponse messages to the results queue after async scoring.",
+    "example": "On when Orchestrator subscribes to risk.results for audit/actions."
+  },
+  "features.rabbitmq_events_exchange": {
+    "label": "Events exchange",
+    "description": "Topic exchange the casino platform publishes to. Empty = legacy direct queue mode.",
+    "example": "casino.events"
+  },
+  "features.rabbitmq_events_exchange_type": {
+    "label": "Exchange type",
+    "description": "RabbitMQ exchange type declared/bound by AFS consumer.",
+    "example": "topic"
+  },
+  "features.rabbitmq_events_queue": {
+    "label": "Events queue",
+    "description": "Queue AFS consumes from after binding to the platform exchange.",
+    "example": "casino.afs"
+  },
+  "features.rabbitmq_events_binding_key": {
+    "label": "Binding key",
+    "description": "Routing key pattern for queue binding. # = all messages on exchange.",
+    "example": "# — all events; player.* — only player routing keys."
+  },
+  "features.rabbitmq_prefetch": {
+    "label": "Prefetch count",
+    "description": "Max unacknowledged messages per consumer channel.",
+    "example": "10 — conservative; 50 — higher throughput, more memory."
+  },
+  "features.rabbitmq_results_queue": {
+    "label": "Results queue",
+    "description": "Outbound queue name for scored async results.",
+    "example": "risk.results"
+  },
+  "logging.sync_enabled": {
+    "label": "Sync request/response logging",
+    "description": "Store full request and response payloads for POST /evaluate in Postgres. View under Log viewer below.",
+    "example": "Enable during integration testing; disable in high-volume production if storage is a concern."
+  },
+  "logging.async_enabled": {
+    "label": "Async request/response logging",
+    "description": "Store RabbitMQ scored/skipped/rejected/failed messages with payloads where available.",
+    "example": "Enable to debug casino.events → AFS pipeline without tailing container logs."
+  }
+}

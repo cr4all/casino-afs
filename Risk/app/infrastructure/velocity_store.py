@@ -5,7 +5,13 @@ import redis
 
 from app.infrastructure.betting_patterns import betting_pattern_velocity
 from app.runtime_config import get_runtime_config
+from app.runtime_config.thresholds import merge_velocity_thresholds
 from app.infrastructure.withdrawal_method import withdrawal_method_storage_key
+
+
+def _vt(key: str) -> int:
+    return merge_velocity_thresholds(get_runtime_config().velocity_thresholds)[key]
+
 from app.models import CanonicalEvent, EventType, GAMING_EVENT_TYPES, MONEY_EVENT_TYPES, is_provider_sourced_event
 
 
@@ -18,31 +24,31 @@ def _money_event_velocity(event: CanonicalEvent, incr: Callable[[str], int]) -> 
 
     if event.event_type == EventType.PAYMENT_DEPOSIT:
         deposit_count = incr(f"vel:deposit:user:{user_id}")
-        if deposit_count >= get_runtime_config().velocity_thresholds["deposit_user_critical"]:
+        if deposit_count >= _vt("deposit_user_critical"):
             score += 70
             signals.append("rapid_deposit_activity")
-        elif deposit_count >= get_runtime_config().velocity_thresholds["deposit_user_high"]:
+        elif deposit_count >= _vt("deposit_user_high"):
             score += 45
             signals.append("high_deposit_velocity")
-        elif deposit_count >= get_runtime_config().velocity_thresholds["deposit_user_medium"]:
+        elif deposit_count >= _vt("deposit_user_medium"):
             score += 25
             signals.append("medium_deposit_velocity")
 
     if event.event_type == EventType.PAYMENT_WITHDRAW:
         withdrawal_count = incr(f"vel:withdrawal:user:{user_id}")
-        if withdrawal_count >= get_runtime_config().velocity_thresholds["withdrawal_user_critical"]:
+        if withdrawal_count >= _vt("withdrawal_user_critical"):
             score += 75
             signals.append("rapid_withdrawal_activity")
-        elif withdrawal_count >= get_runtime_config().velocity_thresholds["withdrawal_user_high"]:
+        elif withdrawal_count >= _vt("withdrawal_user_high"):
             score += 50
             signals.append("high_withdrawal_velocity")
-        elif withdrawal_count >= get_runtime_config().velocity_thresholds["withdrawal_user_medium"]:
+        elif withdrawal_count >= _vt("withdrawal_user_medium"):
             score += 30
             signals.append("medium_withdrawal_velocity")
 
         if ip:
             withdrawal_ip_count = incr(f"vel:withdrawal:ip:{ip}")
-            if withdrawal_ip_count >= get_runtime_config().velocity_thresholds["withdrawal_ip_high"]:
+            if withdrawal_ip_count >= _vt("withdrawal_ip_high"):
                 score += 40
                 signals.append("high_withdrawal_ip_velocity")
 
@@ -65,19 +71,19 @@ def _fingerprint_velocity(
 
     if event.event_type == EventType.PLAYER_SIGNUP:
         fp_signup_count = incr(f"vel:signup:fingerprint:{fingerprint}")
-        if fp_signup_count >= get_runtime_config().velocity_thresholds["signup_fingerprint_critical"]:
+        if fp_signup_count >= _vt("signup_fingerprint_critical"):
             score += 75
             signals.append("multi_account_fingerprint_abuse")
-        elif fp_signup_count >= get_runtime_config().velocity_thresholds["signup_fingerprint_high"]:
+        elif fp_signup_count >= _vt("signup_fingerprint_high"):
             score += 50
             signals.append("high_signup_fingerprint_velocity")
 
     if event.event_type in {EventType.PLAYER_SIGNUP, EventType.PLAYER_LOGIN}:
         distinct_users = sadd(f"vel:fingerprint:users:{fingerprint}", user_id)
-        if distinct_users >= get_runtime_config().velocity_thresholds["fingerprint_distinct_users_critical"]:
+        if distinct_users >= _vt("fingerprint_distinct_users_critical"):
             score += 80
             signals.append("multi_account_fingerprint_abuse")
-        elif distinct_users >= get_runtime_config().velocity_thresholds["fingerprint_distinct_users_high"]:
+        elif distinct_users >= _vt("fingerprint_distinct_users_high"):
             score += 55
             signals.append("multiple_accounts_same_fingerprint")
 
@@ -131,36 +137,36 @@ def _auth_failure_velocity(
     if event.event_type == EventType.PLAYER_LOGIN_FAILED:
         if ip:
             ip_count = incr(f"vel:login_failed:ip:{ip}")
-            if ip_count >= get_runtime_config().velocity_thresholds["login_failed_ip_critical"]:
+            if ip_count >= _vt("login_failed_ip_critical"):
                 score += 85
                 signals.append("brute_force_login_suspected")
-            elif ip_count >= get_runtime_config().velocity_thresholds["login_failed_ip_high"]:
+            elif ip_count >= _vt("login_failed_ip_high"):
                 score += 60
                 signals.append("excessive_login_failures")
-            elif ip_count >= get_runtime_config().velocity_thresholds["login_failed_ip_medium"]:
+            elif ip_count >= _vt("login_failed_ip_medium"):
                 score += 35
                 signals.append("medium_login_failure_velocity")
 
         if user_id:
             user_count = incr(f"vel:login_failed:user:{user_id}")
-            if user_count >= get_runtime_config().velocity_thresholds["login_failed_user_critical"]:
+            if user_count >= _vt("login_failed_user_critical"):
                 score += 75
                 signals.append("account_lockout_recommended")
-            elif user_count >= get_runtime_config().velocity_thresholds["login_failed_user_high"]:
+            elif user_count >= _vt("login_failed_user_high"):
                 score += 50
                 signals.append("high_user_login_failure_velocity")
 
         email_count = incr(f"vel:login_failed:email:{email}")
-        if email_count >= get_runtime_config().velocity_thresholds["login_failed_user_high"]:
+        if email_count >= _vt("login_failed_user_high"):
             score += 40
             signals.append("credential_guessing_suspected")
 
     if event.event_type == EventType.PLAYER_SIGNUP_FAILED and ip:
         ip_count = incr(f"vel:signup_failed:ip:{ip}")
-        if ip_count >= get_runtime_config().velocity_thresholds["signup_failed_ip_critical"]:
+        if ip_count >= _vt("signup_failed_ip_critical"):
             score += 70
             signals.append("signup_abuse_suspected")
-        elif ip_count >= get_runtime_config().velocity_thresholds["signup_failed_ip_high"]:
+        elif ip_count >= _vt("signup_failed_ip_high"):
             score += 45
             signals.append("high_signup_failure_velocity")
 
@@ -200,10 +206,10 @@ class InMemoryVelocityStore:
 
         if ip and not is_provider_sourced_event(event.event_type):
             all_ip_count = self._incr(f"vel:all:ip:{ip}")
-            if all_ip_count >= get_runtime_config().velocity_thresholds["ip_all_high"]:
+            if all_ip_count >= _vt("ip_all_high"):
                 score += 40
                 signals.append("extreme_ip_activity")
-            elif all_ip_count >= get_runtime_config().velocity_thresholds["ip_all_medium"]:
+            elif all_ip_count >= _vt("ip_all_medium"):
                 score += 20
                 signals.append("elevated_ip_activity")
 
@@ -211,54 +217,54 @@ class InMemoryVelocityStore:
             login_ip_count = self._incr(f"vel:login:ip:{ip}")
             distinct_users = self._sadd(f"vel:login:ip_users:{ip}", user_id)
 
-            if login_ip_count >= get_runtime_config().velocity_thresholds["login_ip_critical"]:
+            if login_ip_count >= _vt("login_ip_critical"):
                 score += 80
                 signals.append("bulk_login_attack")
-            elif login_ip_count >= get_runtime_config().velocity_thresholds["login_ip_high"]:
+            elif login_ip_count >= _vt("login_ip_high"):
                 score += 60
                 signals.append("high_login_ip_velocity")
-            elif login_ip_count >= get_runtime_config().velocity_thresholds["login_ip_medium"]:
+            elif login_ip_count >= _vt("login_ip_medium"):
                 score += 35
                 signals.append("medium_login_ip_velocity")
 
-            if distinct_users >= get_runtime_config().velocity_thresholds["login_ip_distinct_users_critical"]:
+            if distinct_users >= _vt("login_ip_distinct_users_critical"):
                 score += 80
                 signals.append("credential_stuffing_suspected")
-            elif distinct_users >= get_runtime_config().velocity_thresholds["login_ip_distinct_users_high"]:
+            elif distinct_users >= _vt("login_ip_distinct_users_high"):
                 score += 55
                 signals.append("multiple_accounts_same_ip_login")
 
             user_login_count = self._incr(f"vel:login:user:{user_id}")
-            if user_login_count >= get_runtime_config().velocity_thresholds["login_user_critical"]:
+            if user_login_count >= _vt("login_user_critical"):
                 score += 70
                 signals.append("excessive_user_login_attempts")
-            elif user_login_count >= get_runtime_config().velocity_thresholds["login_user_high"]:
+            elif user_login_count >= _vt("login_user_high"):
                 score += 45
                 signals.append("high_user_login_velocity")
-            elif user_login_count >= get_runtime_config().velocity_thresholds["login_user_medium"]:
+            elif user_login_count >= _vt("login_user_medium"):
                 score += 25
                 signals.append("medium_user_login_velocity")
 
         if event.event_type == EventType.PLAYER_SIGNUP:
             if ip:
                 signup_ip_count = self._incr(f"vel:signup:ip:{ip}")
-                if signup_ip_count >= get_runtime_config().velocity_thresholds["signup_ip_critical"]:
+                if signup_ip_count >= _vt("signup_ip_critical"):
                     score += 80
                     signals.append("bulk_signup_attack")
-                # elif signup_ip_count >= get_runtime_config().velocity_thresholds["signup_ip_high"]:
+                # elif signup_ip_count >= _vt("signup_ip_high"):
                 #     score += 60
                 #     signals.append("high_signup_ip_velocity")
-                # elif signup_ip_count >= get_runtime_config().velocity_thresholds["signup_ip_medium"]:
+                # elif signup_ip_count >= _vt("signup_ip_medium"):
                 #     score += 30
                 #     signals.append("medium_signup_ip_velocity")
 
             if email and "@" in email:
                 domain = email.split("@")[-1]
                 domain_count = self._incr(f"vel:signup:domain:{domain}")
-                # if domain_count >= get_runtime_config().velocity_thresholds["signup_domain_critical"]:
+                # if domain_count >= _vt("signup_domain_critical"):
                 #     score += 65
                 #     signals.append("mass_signup_same_email_domain")
-                # elif domain_count >= get_runtime_config().velocity_thresholds["signup_domain_high"]:
+                # elif domain_count >= _vt("signup_domain_high"):
                 #     score += 40
                 #     signals.append("high_signup_email_domain_velocity")
 
@@ -327,10 +333,10 @@ class RedisVelocityStore:
 
         if ip and not is_provider_sourced_event(event.event_type):
             all_ip_count = self._incr(f"vel:all:ip:{ip}", self._ip_ttl)
-            if all_ip_count >= get_runtime_config().velocity_thresholds["ip_all_high"]:
+            if all_ip_count >= _vt("ip_all_high"):
                 score += 40
                 signals.append("extreme_ip_activity")
-            elif all_ip_count >= get_runtime_config().velocity_thresholds["ip_all_medium"]:
+            elif all_ip_count >= _vt("ip_all_medium"):
                 score += 20
                 signals.append("elevated_ip_activity")
 
@@ -338,54 +344,54 @@ class RedisVelocityStore:
             login_ip_count = self._incr(f"vel:login:ip:{ip}", self._ip_ttl)
             distinct_users = self._sadd(f"vel:login:ip_users:{ip}", user_id, self._ip_ttl)
 
-            if login_ip_count >= get_runtime_config().velocity_thresholds["login_ip_critical"]:
+            if login_ip_count >= _vt("login_ip_critical"):
                 score += 80
                 signals.append("bulk_login_attack")
-            elif login_ip_count >= get_runtime_config().velocity_thresholds["login_ip_high"]:
+            elif login_ip_count >= _vt("login_ip_high"):
                 score += 60
                 signals.append("high_login_ip_velocity")
-            elif login_ip_count >= get_runtime_config().velocity_thresholds["login_ip_medium"]:
+            elif login_ip_count >= _vt("login_ip_medium"):
                 score += 35
                 signals.append("medium_login_ip_velocity")
 
-            if distinct_users >= get_runtime_config().velocity_thresholds["login_ip_distinct_users_critical"]:
+            if distinct_users >= _vt("login_ip_distinct_users_critical"):
                 score += 80
                 signals.append("credential_stuffing_suspected")
-            elif distinct_users >= get_runtime_config().velocity_thresholds["login_ip_distinct_users_high"]:
+            elif distinct_users >= _vt("login_ip_distinct_users_high"):
                 score += 55
                 signals.append("multiple_accounts_same_ip_login")
 
             user_login_count = self._incr(f"vel:login:user:{user_id}", self._ip_ttl)
-            if user_login_count >= get_runtime_config().velocity_thresholds["login_user_critical"]:
+            if user_login_count >= _vt("login_user_critical"):
                 score += 70
                 signals.append("excessive_user_login_attempts")
-            elif user_login_count >= get_runtime_config().velocity_thresholds["login_user_high"]:
+            elif user_login_count >= _vt("login_user_high"):
                 score += 45
                 signals.append("high_user_login_velocity")
-            elif user_login_count >= get_runtime_config().velocity_thresholds["login_user_medium"]:
+            elif user_login_count >= _vt("login_user_medium"):
                 score += 25
                 signals.append("medium_user_login_velocity")
 
         if event.event_type == EventType.PLAYER_SIGNUP:
             if ip:
                 signup_ip_count = self._incr(f"vel:signup:ip:{ip}", self._ip_ttl)
-                if signup_ip_count >= get_runtime_config().velocity_thresholds["signup_ip_critical"]:
+                if signup_ip_count >= _vt("signup_ip_critical"):
                     score += 80
                     signals.append("bulk_signup_attack")
-                # elif signup_ip_count >= get_runtime_config().velocity_thresholds["signup_ip_high"]:
+                # elif signup_ip_count >= _vt("signup_ip_high"):
                 #     score += 60
                 #     signals.append("high_signup_ip_velocity")
-                # elif signup_ip_count >= get_runtime_config().velocity_thresholds["signup_ip_medium"]:
+                # elif signup_ip_count >= _vt("signup_ip_medium"):
                 #     score += 30
                 #     signals.append("medium_signup_ip_velocity")
 
             if email and "@" in email:
                 domain = email.split("@")[-1]
                 domain_count = self._incr(f"vel:signup:domain:{domain}", self._domain_ttl)
-                if domain_count >= get_runtime_config().velocity_thresholds["signup_domain_critical"]:
+                if domain_count >= _vt("signup_domain_critical"):
                     score += 65
                     signals.append("mass_signup_same_email_domain")
-                # elif domain_count >= get_runtime_config().velocity_thresholds["signup_domain_high"]:
+                # elif domain_count >= _vt("signup_domain_high"):
                 #     score += 40
                 #     signals.append("high_signup_email_domain_velocity")
 

@@ -1,4 +1,9 @@
-from app.engines.registry import collect_signals, has_critical_signal
+from app.engines.registry import (
+    collect_signals,
+    has_critical_signal,
+    has_multi_account_fingerprint_signal,
+    DEVICE_TRUST_CHALLENGE_SIGNALS,
+)
 from app.models import (
     AUTH_FAILURE_EVENT_TYPES,
     GAMING_EVENT_TYPES,
@@ -9,6 +14,17 @@ from app.models import (
     RiskLevel,
 )
 from app.runtime_config import get_runtime_config
+
+
+def _device_trust_challenge(event_type: EventType, signals: list[str]) -> bool:
+    signal_set = set(signals)
+    if not signal_set & DEVICE_TRUST_CHALLENGE_SIGNALS:
+        return False
+    if event_type == EventType.PLAYER_LOGIN:
+        return "untrusted_device_login" in signal_set
+    if event_type == EventType.PAYMENT_WITHDRAW:
+        return bool(signal_set & {"new_device_on_withdrawal", "first_device_seen_for_user"})
+    return False
 
 
 def determine_decision(
@@ -34,8 +50,11 @@ def determine_decision(
     if event_type in MONEY_EVENT_TYPES and "blocklisted_country" in signals:
         return "block"
 
-    if "new_device_on_withdrawal" in signals:
+    if has_multi_account_fingerprint_signal(engine_results):
         return "block"
+
+    if _device_trust_challenge(event_type, signals):
+        return "challenge"
 
     if event_type == EventType.PAYMENT_WITHDRAW and (
         "vpn_withdrawal_attempt" in signals
@@ -56,16 +75,22 @@ def determine_decision(
         return "allow"
 
     if event_type == EventType.PLAYER_LOGIN and risk_level in {"high", "critical"}:
+        if _device_trust_challenge(event_type, signals):
+            return "challenge"
         return "block"
 
     if event_type == EventType.PLAYER_SIGNUP and risk_level in {"high", "critical"}:
         return "block"
 
     if risk_level == "critical":
+        if _device_trust_challenge(event_type, signals):
+            return "challenge"
         return "block"
 
     if risk_level == "high":
         if event_type in MONEY_EVENT_TYPES:
+            if _device_trust_challenge(event_type, signals):
+                return "challenge"
             return "block"
         if event_type == EventType.WALLET_WIN:
             return "challenge"
@@ -73,6 +98,8 @@ def determine_decision(
 
     if risk_level == "medium":
         if event_type == EventType.PAYMENT_WITHDRAW:
+            if _device_trust_challenge(event_type, signals):
+                return "challenge"
             return "block"
         if event_type in {
             EventType.PAYMENT_DEPOSIT,

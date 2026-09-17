@@ -6,9 +6,16 @@ from shared.db.models import TrustedDevice
 from app.models import CanonicalEvent, ContextData
 
 
+from app.infrastructure.fingerprint_validator import normalize_fingerprint
+
+
 def device_key_from_context(context: ContextData) -> str | None:
-    if context.fingerprint:
-        return f"fp:{context.fingerprint.strip()}"
+    fingerprint = normalize_fingerprint(context.fingerprint)
+    if fingerprint:
+        return f"fp:{fingerprint.lower()}"
+    device_id = (context.device_id or "").strip()
+    if device_id:
+        return f"dev:{device_id}"
     return None
 
 
@@ -30,13 +37,14 @@ class TrustedDeviceService:
             )
             if existing:
                 existing.last_seen_at = now
-                existing.fingerprint = event.context.fingerprint
+                if event.context.fingerprint:
+                    existing.fingerprint = normalize_fingerprint(event.context.fingerprint)
             else:
                 session.add(
                     TrustedDevice(
                         user_id=event.user.user_id,
                         device_key=key,
-                        fingerprint=event.context.fingerprint,
+                        fingerprint=normalize_fingerprint(event.context.fingerprint) or event.context.fingerprint,
                         first_seen_at=now,
                         last_seen_at=now,
                     ),

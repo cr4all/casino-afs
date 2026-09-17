@@ -1,0 +1,590 @@
+{
+  "decision_thresholds.challenge": {
+    "label": "Challenge 임계값",
+    "description": "중간 위험의 최소 점수. 결과는 보통 allow 대신 challenge(Turnstile, MFA, 수동 검토)입니다.",
+    "example": "40 — 점수 39인 플레이어는 allow; 점수 40+는 hard-block signal이 발생하지 않았다면 challenge."
+  },
+  "decision_thresholds.high": {
+    "label": "높은 임계값",
+    "description": "높은 위험의 최소 점수. Login/signup은 종종 차단; deposit/withdraw/bet은 차단되거나 추가 검사가 필요할 수 있습니다.",
+    "example": "61 — 점수 60은 중간/challenge 유지; 점수 61+는 높은 위험."
+  },
+  "decision_thresholds.block": {
+    "label": "Block 임계값(치명적)",
+    "description": "치명적 위험의 최소 점수. Decision 탭의 signal이 이미 block을 강제하지 않았다면 보통 block 결과.",
+    "example": "85 — 점수 84는 여전히 높을 수 있음; 점수 85+는 치명적/block."
+  },
+  "operator.platform_name": {
+    "label": "플랫폼 이름",
+    "description": "이 operator 인스턴스의 내부 레이블. 로그 및 감사 항목에 사용 — 플레이어에게 전송되지 않음.",
+    "example": "DoveBet EU",
+    "signal": "unlicensed_jurisdiction (국가가 licensed markets에 없을 때)"
+  },
+  "operator.licensed_markets": {
+    "label": "Licensed markets",
+    "description": "도박 라이선스를 보유한 ISO 3166-1 alpha-2 국가 코드. signup, deposit, bet 이벤트에서 플레이어 국가 또는 IP geo로 확인.",
+    "example": "DE,GB,MT,SE — FR 플레이어, 라이선스 없음 → unlicensed_jurisdiction.",
+    "signal": "unlicensed_jurisdiction"
+  },
+  "ip_intel.enabled": {
+    "label": "활성화",
+    "description": "마스터 토글. 꺼지면 외부 IP 조회가 실행되지 않고 vpn/proxy/tor/hosting signal이 발생하지 않습니다.",
+    "example": "아웃바운드 API 호출을 원하지 않는 로컬 dev 중에는 끔.",
+    "signal": "vpn_detected, proxy_detected, tor_exit_node, hosting_provider_ip"
+  },
+  "ip_intel.cache_ttl_seconds": {
+    "label": "캐시 TTL(초)",
+    "description": "각 IP 조회 결과가 Redis 또는 메모리에 캐시되는 시간(재조회 전).",
+    "example": "3600 — 동일 IP는 시간당 1회 확인; VPN 전환은 최대 1시간 지연 가능."
+  },
+  "ip_intel.timeout_seconds": {
+    "label": "조회 타임아웃(초)",
+    "description": "외부 IP API 요청당 최대 대기. 캐시 미스 시 evaluate 지연에 영향.",
+    "example": "2.0 — 빠른 fail 또는 fail-open; 5.0 — 느린 API에 더 많은 시간."
+  },
+  "ip_intel.fail_open": {
+    "label": "조회 오류 시 fail open",
+    "description": "켜면 API 타임아웃/오류가 위험을 추가하지 않음. 끄면 조회 실패를 의심(VPN/proxy 의심)으로 처리.",
+    "example": "IP API 다운타임이 login을 막으면 안 되는 production에서는 켬; 엄격한 동작을 원하면 끔."
+  },
+  "aml.single_deposit_threshold": {
+    "label": "단일 deposit 검토",
+    "description": "이 금액 이상의 단일 payment.deposit이 compliance review tier 1을 트리거.",
+    "example": "2000 — €2,000 deposit → elevated_deposit_aml_review.",
+    "signal": "elevated_deposit_aml_review"
+  },
+  "aml.large_deposit_threshold": {
+    "label": "대규모 deposit 검토",
+    "description": "최고 deposit AML tier — 매우 큰 단일 deposit용.",
+    "example": "10000 — €10,000 deposit → large_deposit_aml_review.",
+    "signal": "large_deposit_aml_review"
+  },
+  "aml.withdrawal_review_threshold": {
+    "label": "Withdrawal 검토",
+    "description": "이 금액 이상의 단일 payment.withdraw이 cashout 검토 signal을 트리거.",
+    "example": "1000 — €1,000 withdrawal → elevated_withdrawal_review 및 cashout_review_required.",
+    "signal": "elevated_withdrawal_review, cashout_review_required"
+  },
+  "aml.structuring_threshold": {
+    "label": "Structuring 임계값",
+    "description": "이 금액의 90%~100% 사이 deposit 플래그 — 신고 한도 바로 아래에 머무르는 패턴.",
+    "example": "3000 — €2,850 deposit(3000의 95%) → structuring_threshold_deposit.",
+    "signal": "structuring_threshold_deposit"
+  },
+  "aml.micro_deposit_max": {
+    "label": "Micro deposit 최대",
+    "description": "이 금액 미만 deposit은 bonus-farming / payment 테스트 탐지를 트리거.",
+    "example": "10 — €5 deposit → micro_deposit_bonus_farming.",
+    "signal": "micro_deposit_bonus_farming"
+  },
+  "aml.high_stake_bet_threshold": {
+    "label": "고액 bet",
+    "description": "이 금액 이상의 단일 wallet.bet / game.bet. €100 초과 bet(고정 엔진 규칙)도 elevated_stake_bet 발생.",
+    "example": "500 — €500 bet → high_stake_bet.",
+    "signal": "high_stake_bet, elevated_stake_bet"
+  },
+  "aml.blocklist.enabled": {
+    "label": "Blocklist 스크리닝 활성화",
+    "description": "모든 AML blocklist 엔진(crypto, bank, country 등)의 마스터 토글.",
+    "example": "blocklist 검사를 AFS 외부에서만 수행하는 경우에만 끔."
+  },
+  "aml.blocklist.crypto_enabled": {
+    "label": "Crypto wallet 스크리닝",
+    "description": "payment.withdraw / payment.deposit의 crypto payout 주소를 OFAC sync + 수동 목록과 대조.",
+    "example": "withdraw evaluate 시 payment_method_type: crypto 및 payment_method_key: 0xabc… 전송.",
+    "signal": "ofac_sanctioned_wallet, blocklisted_payout_address"
+  },
+  "aml.blocklist.bank_enabled": {
+    "label": "Bank account 스크리닝",
+    "description": "은행 payout의 IBAN/은행 계좌 ID 확인.",
+    "example": "payment_method_type: bank, payment_method_key: DE89370400440532013000",
+    "signal": "blocklisted_payout_address"
+  },
+  "aml.blocklist.ewallet_enabled": {
+    "label": "E-wallet 스크리닝",
+    "description": "e-wallet payout의 e-wallet ID 또는 이메일 확인.",
+    "example": "payment_method_type: ewallet, payment_method_key: skrill_user@email.com",
+    "signal": "blocklisted_payout_address"
+  },
+  "aml.blocklist.card_enabled": {
+    "label": "Card payout 스크리닝",
+    "description": "카드 withdrawal의 카드 토큰 또는 payout 참조 확인.",
+    "example": "payment_method_type: card, payment_method_key: card_token_abc123",
+    "signal": "blocklisted_payout_address"
+  },
+  "aml.blocklist.country_enabled": {
+    "label": "Country blocklist 스크리닝",
+    "description": "플레이어 국가가 OFAC sync, Lists 탭 또는 수동 countries와 일치하면 signup/login/deposit/withdraw 차단.",
+    "example": "플레이어 국가 KP, country blocklist 활성화 → blocklisted_country.",
+    "signal": "blocklisted_country"
+  },
+  "aml.blocklist.sync_ofac_crypto_enabled": {
+    "label": "OFAC crypto wallet 자동 sync",
+    "description": "미국 재무부 SDN crypto 주소를 매일 가져옴. Risk 컨테이너에서 아웃바운드 HTTPS 필요.",
+    "example": "활성화 후 아래 Sync OFAC lists now 버튼 사용."
+  },
+  "aml.blocklist.sync_ofac_countries_enabled": {
+    "label": "OFAC countries 자동 sync",
+    "description": "각 sync마다 Treasury 파생 제재 국가 ISO 코드를 Postgres에 로드.",
+    "example": "일정(sync interval) 및 수동 sync 시 실행."
+  },
+  "aml.blocklist.sync_interval_hours": {
+    "label": "Sync 간격(시간)",
+    "description": "백그라운드 작업이 OFAC crypto 및 country 목록을 새로고침하는 빈도.",
+    "example": "24 — 하루 1회 sync; 6 — 더 자주 업데이트."
+  },
+  "aml.blocklist.fail_open": {
+    "label": "Sync 불가 시 fail open",
+    "description": "켜면 빈/오래된 blocklist DB가 payout을 차단하지 않음. 끄면 sync 데이터 누락을 높은 위험으로 처리.",
+    "example": "production 복원력을 위해 켬; 최대 compliance 엄격성을 위해 끔."
+  },
+  "aml.blocklist.use_lists_sanctioned_countries": {
+    "label": "Lists 탭 제재 국가 포함",
+    "description": "Lists → sanctioned countries를 country blocklist 검사에 병합(OFAC sync 및 수동 추가).",
+    "example": "Lists 탭에 IR 추가 + 이 옵션 활성화 → 이란 플레이어 sanctioned_country.",
+    "signal": "sanctioned_country"
+  },
+  "aml.blocklist.crypto_hit_score": {
+    "label": "Payout blocklist hit 점수",
+    "description": "payout 목적지(crypto/bank/e-wallet/card)가 blocklist 항목과 일치할 때 추가되는 위험 점수.",
+    "example": "90 — 다른 signal과 결합 시 보통 block 쪽으로 결정."
+  },
+  "aml.blocklist.country_hit_score": {
+    "label": "Country blocklist hit 점수",
+    "description": "플레이어 국가가 blocklist와 일치할 때의 위험 점수.",
+    "example": "90 — 기본값; block 대신 challenge를 원하면 70으로 낮춤."
+  },
+  "aml.blocklist.manual_crypto_wallets": {
+    "label": "수동 crypto wallet",
+    "description": "차단할 추가 wallet 주소 — 한 줄에 하나. OFAC sync 외 crypto payout에서 확인.",
+    "example": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb\\nbc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"
+  },
+  "aml.blocklist.manual_bank_accounts": {
+    "label": "수동 bank account",
+    "description": "차단할 IBAN 또는 bank account 식별자 — 한 줄에 하나.",
+    "example": "DE89370400440532013000\\nGB82WEST12345698765432"
+  },
+  "aml.blocklist.manual_ewallet_accounts": {
+    "label": "수동 e-wallet account",
+    "description": "차단할 e-wallet ID 또는 이메일 — 한 줄에 하나.",
+    "example": "skrill:fraud_ring_01\\nneteller:abuse@test.com"
+  },
+  "aml.blocklist.manual_card_accounts": {
+    "label": "수동 card payout",
+    "description": "차단할 카드 토큰 또는 payout 참조 — 한 줄에 하나.",
+    "example": "card_token_stolen_batch_42\\nvisa_payout_ref_99102"
+  },
+  "aml.blocklist.manual_countries": {
+    "label": "수동 blocklist countries",
+    "description": "차단할 ISO 3166-1 alpha-2 코드 — 한 줄에 하나. OFAC sync 및 Lists 탭과 병합.",
+    "example": "IR\\nKP\\nSY",
+    "signal": "blocklisted_country"
+  },
+  "withdrawal_method.enabled": {
+    "label": "활성화",
+    "description": "꺼지면 공유 payout 목적지 검사를 건너뜀.",
+    "example": "모든 payment.withdraw evaluate에 payment_method_type + payment_method_key 필요.",
+    "signal": "shared_withdrawal_method, multiple_accounts_shared_payout_method, multi_account_shared_withdrawal_method"
+  },
+  "withdrawal_method.distinct_users_medium": {
+    "label": "고유 user(중간)",
+    "description": "중간 tier가 발생하기 전 동일 payout key로 withdraw하는 서로 다른 user_id 수.",
+    "example": "2 — user A와 B가 IBAN DE89…로 withdraw → shared_withdrawal_method.",
+    "signal": "shared_withdrawal_method"
+  },
+  "withdrawal_method.distinct_users_high": {
+    "label": "고유 user(높음)",
+    "description": "높은 tier multi-account payout 남용의 고유 user 임계값.",
+    "example": "3 — 동일 Skrill 이메일을 공유하는 3개 계정.",
+    "signal": "multiple_accounts_shared_payout_method"
+  },
+  "withdrawal_method.distinct_users_critical": {
+    "label": "고유 user(치명적)",
+    "description": "치명적 tier의 고유 user 임계값 — 보통 Decision 탭을 통해 block 강제.",
+    "example": "4 — 4개 계정, 동일 crypto wallet → multi_account_shared_withdrawal_method(hard block).",
+    "signal": "multi_account_shared_withdrawal_method"
+  },
+  "withdrawal_method.medium_score": {
+    "label": "중간 점수",
+    "description": "고유 user 중간 임계값 도달 시 추가되는 위험 점수.",
+    "example": "35 — 다른 엔진과 결합하여 challenge/high 도달."
+  },
+  "withdrawal_method.high_score": {
+    "label": "높은 점수",
+    "description": "고유 user 높은 임계값 도달 시 추가되는 위험 점수.",
+    "example": "55"
+  },
+  "withdrawal_method.critical_score": {
+    "label": "치명적 점수",
+    "description": "고유 user 치명적 임계값 도달 시 추가되는 위험 점수.",
+    "example": "80 — decision threshold가 ≤80이면 단독으로 block에 충분한 경우가 많음."
+  },
+  "betting_patterns.enabled": {
+    "label": "활성화",
+    "description": "순차 burst 카운터 및 win-rate ratio 검사의 마스터 토글.",
+    "example": "끄면 이 탭의 모든 signal 비활성화."
+  },
+  "betting_patterns.burst_window_seconds": {
+    "label": "Burst window(초)",
+    "description": "모든 burst 카운터 및 win-rate 계산의 롤링 시간 창.",
+    "example": "300 — 5분 내 10 game.bets가 burst에 포함; 각 이벤트마다 창 이동."
+  },
+  "betting_patterns.game_bet_burst_medium": {
+    "label": "game.bet burst — 중간",
+    "description": "중간 burst signal 전 window 내 순차 game.bet 이벤트.",
+    "example": "10 — 300초 내 연속 10 bonus spin.",
+    "signal": "sequential_game_bet_burst"
+  },
+  "betting_patterns.game_bet_burst_high": {
+    "label": "game.bet burst — 높음",
+    "description": "높은 tier burst의 순차 game.bet 수.",
+    "example": "20",
+    "signal": "sequential_game_bet_burst (higher score tier)"
+  },
+  "betting_patterns.game_bet_burst_critical": {
+    "label": "game.bet burst — 치명적",
+    "description": "치명적 tier burst의 순차 game.bet 수.",
+    "example": "35",
+    "signal": "sequential_game_bet_burst (critical score tier)"
+  },
+  "betting_patterns.wallet_bet_burst_medium": {
+    "label": "wallet.bet burst — 중간",
+    "description": "중간 burst 전 window 내 순차 wallet.bet(실머니) 이벤트.",
+    "example": "20 — 빠른 live-casino betting bot 패턴.",
+    "signal": "sequential_wallet_bet_burst"
+  },
+  "betting_patterns.wallet_bet_burst_high": {
+    "label": "wallet.bet burst — 높음",
+    "description": "높은 tier의 순차 wallet.bet 수.",
+    "example": "40",
+    "signal": "sequential_wallet_bet_burst (higher score tier)"
+  },
+  "betting_patterns.wallet_bet_burst_critical": {
+    "label": "wallet.bet burst — 치명적",
+    "description": "치명적 tier의 순차 wallet.bet 수.",
+    "example": "60",
+    "signal": "sequential_wallet_bet_burst (critical score tier)"
+  },
+  "betting_patterns.wallet_win_burst_medium": {
+    "label": "wallet.win burst — 중간",
+    "description": "중간 win burst 전 window 내 순차 wallet.win credit.",
+    "example": "8 — 짧은 시간에 많은 win 적립.",
+    "signal": "sequential_wallet_win_burst"
+  },
+  "betting_patterns.wallet_win_burst_high": {
+    "label": "wallet.win burst — 높음",
+    "description": "높은 tier의 순차 wallet.win 수.",
+    "example": "15",
+    "signal": "sequential_wallet_win_burst (higher score tier)"
+  },
+  "betting_patterns.wallet_win_burst_critical": {
+    "label": "wallet.win burst — 치명적",
+    "description": "치명적 tier의 순차 wallet.win 수.",
+    "example": "25",
+    "signal": "sequential_wallet_win_burst (critical score tier)"
+  },
+  "betting_patterns.win_rate_min_bets": {
+    "label": "Win rate — 최소 bet",
+    "description": "win-rate ratio 평가 전 window 내 최소 wallet.bet + game.bet 수.",
+    "example": "5 — 최소 5 bet 필요; 4 win / 4 bet은 5번째 bet까지 무시."
+  },
+  "betting_patterns.win_rate_high_ratio": {
+    "label": "Win rate — 높은 ratio",
+    "description": "높은 win-rate signal을 트리거하는 win ÷ bet ratio(0–1).",
+    "example": "0.75 — window 내 8 bet 중 6 win(75%) → high_win_rate_in_betting_sequence.",
+    "signal": "high_win_rate_in_betting_sequence"
+  },
+  "betting_patterns.win_rate_critical_ratio": {
+    "label": "Win rate — 치명적 ratio",
+    "description": "치명적 win-rate tier의 win ÷ bet ratio.",
+    "example": "0.90 — 10 bet 중 9 win → critical_win_rate_in_betting_sequence.",
+    "signal": "critical_win_rate_in_betting_sequence"
+  },
+  "hedge_betting.enabled": {
+    "label": "활성화",
+    "description": "hedged-round 탐지 및 volume-washing ratio의 마스터 토글.",
+    "example": "metadata.game.selection 및 round_id를 아직 보내지 않으면 끔."
+  },
+  "hedge_betting.window_seconds": {
+    "label": "Stats window(초)",
+    "description": "반복 hedged round 및 gross volume ratio 카운트의 롤링 창.",
+    "example": "3600 — user당 지난 1시간 hedged round 카운트."
+  },
+  "hedge_betting.round_leg_ttl_seconds": {
+    "label": "Round leg TTL(초)",
+    "description": "동일 round_id에서 반대쪽을 기다리는 동안 첫 bet leg가 저장되는 시간.",
+    "example": "600 — 12:00:00 banker bet; 12:09:59 player bet은 여전히 매칭; 12:10:01 leg 만료."
+  },
+  "hedge_betting.time_pair_window_seconds": {
+    "label": "Time-pair window(초)",
+    "description": "round_id는 없고 table_id만 있을 때의 fallback 그룹 버킷 — 동일 table에서 이 window 내 bet이 페어링될 수 있음.",
+    "example": "15 — require_round_id가 꺼져 있고 round_id가 없을 때만 사용."
+  },
+  "hedge_betting.require_round_id": {
+    "label": "round_id 필수",
+    "description": "켜면 metadata.game.round_id가 있을 때만 hedge 검사 실행. backend가 round_id를 보내면 권장.",
+    "example": "production에서 켬 — time-pair fallback의 false positive 방지."
+  },
+  "hedge_betting.opposite_selection_groups": {
+    "label": "Opposite selection groups",
+    "description": "그룹 JSON 배열. 동일 내부 배열의 selection은 동일 round에서 반대로 처리.",
+    "signal": "opposite_side_bets_same_round"
+  },
+  "hedge_betting.amount_match_tolerance_percent": {
+    "label": "Amount match tolerance(%)",
+    "description": "반대 leg의 stake는 서로 이 퍼센트 이내여야 함.",
+    "example": "10 — banker €1000 + player €950 매칭; player €800은 아님."
+  },
+  "hedge_betting.opposite_side_same_round_score": {
+    "label": "점수 — opposite sides same round",
+    "description": "단일 hedged round(반대 sides, 일치하는 amount) 탐지 시 위험 점수.",
+    "example": "50 — 첫 banker+player pair 탐지 시 발생.",
+    "signal": "opposite_side_bets_same_round"
+  },
+  "hedge_betting.hedged_round_medium": {
+    "label": "Hedged rounds — 중간",
+    "description": "반복 패턴 signal(중간 tier) 전 stats window 내 고유 hedged round.",
+    "example": "3 — 1시간 내 3개의 별도 hedged hand.",
+    "signal": "repeated_hedged_rounds"
+  },
+  "hedge_betting.hedged_round_high": {
+    "label": "Hedged rounds — 높음",
+    "description": "높은 tier의 고유 hedged round.",
+    "example": "8",
+    "signal": "high_repeated_hedged_rounds"
+  },
+  "hedge_betting.hedged_round_critical": {
+    "label": "Hedged rounds — 치명적",
+    "description": "치명적 tier의 고유 hedged round.",
+    "example": "15",
+    "signal": "critical_hedged_bet_volume_washing"
+  },
+  "hedge_betting.volume_washing_enabled": {
+    "label": "Volume washing 검사",
+    "description": "켜면 stats window에서 hedged gross bet volume을 total gross bet volume과 비교.",
+    "example": "플레이어 1h 내 hedged €6000 + normal €4000 → 60% hedged share.",
+    "signal": "hedged_bet_volume_washing"
+  },
+  "hedge_betting.min_gross_volume": {
+    "label": "Volume washing — 최소 gross",
+    "description": "volume-washing ratio 평가 전 window 내 최소 total bet volume.",
+    "example": "5000 — window 내 gross bet이 최소 €5000까지 ratio 무시."
+  },
+  "hedge_betting.min_hedged_gross_ratio": {
+    "label": "Volume washing — 최소 hedged ratio",
+    "description": "volume washing signal을 트리거하는 최소 hedged_gross ÷ total_gross ratio(0–1).",
+    "example": "0.5 — gross volume의 50% 이상 hedged → hedged_bet_volume_washing(Decision에 있으면 hard block).",
+    "signal": "hedged_bet_volume_washing"
+  },
+  "hedge_betting.volume_washing_score": {
+    "label": "점수 — volume washing",
+    "description": "volume-washing ratio 임계값 충족 시 추가되는 위험 점수.",
+    "example": "55 — opposite_side 점수와 결합하여 더 높은 합계."
+  },
+  "step_up_verification.enabled": {
+    "label": "활성화",
+    "description": "꺼지면 step_up_verification metadata가 무시되고 challenge 결과가 downgrade되지 않음.",
+    "example": "frontend가 challenge 응답에 Turnstile을 표시할 때 켬."
+  },
+  "step_up_verification.grant_ttl_days": {
+    "label": "Grant 기간(일)",
+    "description": "동일 user_id + device fingerprint에 대한 성공 verification grant 유효 기간.",
+    "example": "7 — 플레이어가 Turnstile 1회 통과; 동일 device에서 7일간 후속 login allow."
+  },
+  "step_up_verification.max_verified_age_minutes": {
+    "label": "verified_at 최대 age(분)",
+    "description": "metadata.verified_at은 evaluate 요청 타임스탬프로부터 이 분 이내여야 함.",
+    "example": "5 — 12:00 siteverify, 12:06 evaluate → grant stale로 거부."
+  },
+  "step_up_verification.downgrade_challenge_to_allow": {
+    "label": "Challenge를 allow로 downgrade",
+    "description": "켜면 활성 grant가 challenge 결정을 allow로 변경. block 또는 critical signal은 절대 override하지 않음.",
+    "example": "켬 — Turnstile 통과 후 일반적인 production 설정."
+  },
+  "step_up_verification.allowed_hostnames": {
+    "label": "Allowed hostnames",
+    "description": "siteverify 응답의 선택적 Cloudflare hostname allowlist — 한 줄에 하나. 비어 있으면 검사 생략.",
+    "example": "casino.example.com\\nwww.casino.example.com"
+  },
+  "step_up_verification.applicable_event_types": {
+    "label": "Applicable event types",
+    "description": "step-up grant가 challenge를 downgrade할 수 있는 event type — 한 줄에 하나.",
+    "example": "player.login\\nplayer.signup\\npayment.deposit"
+  },
+  "fingerprint.required_channels": {
+    "label": "필수 channel",
+    "description": "context.fingerprint가 예상되는 channel. 이 channel에서 값 누락 시 missing_fingerprint.",
+    "example": "web,mobile — visitorId 없이 web signup → missing_fingerprint.",
+    "signal": "missing_fingerprint"
+  },
+  "fingerprint.min_length": {
+    "label": "최소 길이",
+    "description": "유효한 FingerprintJS visitorId 최소 문자 길이.",
+    "example": "10 — abc123(6자) → malformed_fingerprint.",
+    "signal": "malformed_fingerprint"
+  },
+  "fingerprint.max_length": {
+    "label": "최대 길이",
+    "description": "유효한 visitorId 최대 길이. min–max 밖 값은 거부.",
+    "example": "64",
+    "signal": "malformed_fingerprint, invalid_fingerprint"
+  },
+  "fingerprint.suspicious_values": {
+    "label": "의심 값",
+    "description": "알려진 가짜 또는 placeholder fingerprint 문자열 — 한 줄에 하나. 정확히 일치하면 검증 실패.",
+    "example": "undefined\\nnull\\n00000000-0000-0000-0000-000000000000",
+    "signal": "invalid_fingerprint"
+  },
+  "lists.disposable_domains": {
+    "label": "일회용 email domain",
+    "description": "일회용 email 제공자 domain. 이 domain으로 signup은 보통 hard-block.",
+    "example": "mailinator.com\\n10minutemail.com\\nguerrillamail.com",
+    "signal": "disposable_email"
+  },
+  "lists.high_risk_countries": {
+    "label": "고위험 countries",
+    "description": "사기율이 높은 ISO country code. geo/IP 검사 시 점수 추가 — 자동 block 아님.",
+    "example": "NG\\nGH\\nPK",
+    "signal": "high_risk_country"
+  },
+  "lists.sanctioned_countries": {
+    "label": "제재 countries",
+    "description": "제재 또는 도박 금지 jurisdiction의 ISO code. AML blocklist가 Lists 탭을 포함할 때 사용.",
+    "example": "IR\\nKP\\nCU",
+    "signal": "sanctioned_country"
+  },
+  "lists.generic_names": {
+    "label": "Generic names",
+    "description": "signup/identity의 placeholder display name — 한 줄에 하나, 대소문자 무시.",
+    "example": "test\\nuser\\nadmin\\nPlayer",
+    "signal": "generic_name"
+  },
+  "lists.role_based_email_locals": {
+    "label": "Role-based email locals",
+    "description": "비개인 계정을 나타내는 email local part(@ 앞).",
+    "example": "admin\\nsupport\\ninfo\\nnoreply",
+    "signal": "role_based_email"
+  },
+  "lists.suspicious_email_tlds": {
+    "label": "Suspicious email TLD",
+    "description": "스팸과 연관된 top-level domain. email이 이 TLD로 끝나면 매칭.",
+    "example": ".xyz\\n.top\\n.click",
+    "signal": "suspicious_email_tld"
+  },
+  "lists.suspicious_email_local_tokens": {
+    "label": "Suspicious email local tokens",
+    "description": "일회용 또는 bot account를 시사하는 email local part 부분 문자열.",
+    "example": "temp\\nspam\\nbot\\nfake",
+    "signal": "suspicious_email_pattern"
+  },
+  "lists.bot_user_agent_tokens": {
+    "label": "Bot User-Agent tokens",
+    "description": "스크립트 또는 자동화를 나타내는 User-Agent header 부분 문자열.",
+    "example": "curl\\npython-requests\\nheadless\\nscrapy",
+    "signal": "bot_user_agent"
+  },
+  "lists.emulator_ua_tokens": {
+    "label": "Emulator UA tokens",
+    "description": "Android emulator 또는 가상 device의 User-Agent 패턴.",
+    "example": "genymotion\\nbluestacks\\nsdk_gphone",
+    "signal": "emulator_detected"
+  },
+  "lists.suspicious_referrers": {
+    "label": "Suspicious referrers",
+    "description": "signup에서 낮은 신뢰로 처리되는 정확한 referrer 값.",
+    "example": "direct\\nunknown\\n(빈 referrer용 빈 줄)",
+    "signal": "suspicious_referrer"
+  },
+  "lists.bonus_abuse_referrer_tokens": {
+    "label": "Bonus abuse referrer tokens",
+    "description": "bonus-hunting 또는 affiliate abuse site와 연결된 signup referrer URL 부분 문자열.",
+    "example": "free-spins\\nno-deposit\\nbonus-hunter",
+    "signal": "bonus_abuse_referrer"
+  },
+  "velocity_thresholds": {
+    "label": "Velocity thresholds(JSON)",
+    "description": "임계값 이름 → 최대 count 맵. 접미사 _medium/_high/_critical이 tier 선택. 키 삭제 금지 — 엔진은 전체 세트 필요.",
+    "example": "{\\n  \"login_ip_medium\": 5,\\n  \"login_ip_high\": 15,\\n  \"login_ip_critical\": 30,\\n  \"signup_ip_critical\": 10,\\n  \"deposit_user_high\": 6\\n}",
+    "signal": "medium_login_ip_velocity, bulk_login_attack, bulk_signup_attack, rapid_deposit_activity, …"
+  },
+  "critical_signals": {
+    "label": "Hard-block signals",
+    "description": "엔진이 emit하는 정확한 signal name 문자열 — 한 줄에 하나. 대소문자 정확히 일치해야 함.",
+    "example": "disposable_email\\nbulk_login_attack\\nhedged_bet_volume_washing\\nmulti_account_shared_withdrawal_method"
+  },
+  "features.sync_publish_audit": {
+    "label": "Sync /evaluate에서 audit publish",
+    "description": "켜면 동기 POST /evaluate 결과도 Orchestrator audit용 RabbitMQ에 publish.",
+    "example": "Orchestrator가 async event와 동일 pipeline에서 sync API 결정을 봐야 할 때 켬."
+  },
+  "features.decision_cache_ttl_seconds": {
+    "label": "Decision cache TTL(초)",
+    "description": "동일 event_id 결정을 Redis에 캐시하여 중복 재점수 방지. Redis 활성화 필요.",
+    "example": "300 — 5분 내 동일 event_id는 캐시된 결정 반환; 0 = 비활성화."
+  },
+  "features.redis_enabled": {
+    "label": "Redis 활성화",
+    "description": "velocity counter, hedge/betting store 및 선택적 decision cache에 Redis 사용.",
+    "example": "단일 인스턴스 dev(메모리 counter)는 끔; production multi-instance는 켬."
+  },
+  "features.redis_velocity_ip_ttl": {
+    "label": "Redis IP velocity TTL",
+    "description": "Redis IP velocity key의 sliding window 길이(초).",
+    "example": "3600 — login_ip_high가 지난 1시간 한 IP의 login 카운트."
+  },
+  "features.redis_velocity_domain_ttl": {
+    "label": "Redis domain velocity TTL",
+    "description": "email domain signup velocity counter의 sliding window 길이.",
+    "example": "86400 — signup_domain_*가 24h domain당 signup 카운트."
+  },
+  "features.rabbitmq_enabled": {
+    "label": "RabbitMQ consumer 활성화",
+    "description": "casino platform exchange/queue에서 event를 점수 매기는 async consumer 시작.",
+    "example": "platform이 casino.events에 wallet.bet, player.login 등을 publish할 때 켬."
+  },
+  "features.rabbitmq_publish_results": {
+    "label": "Orchestrator에 결과 publish",
+    "description": "async scoring 후 scored EvaluateResponse 메시지를 results queue에 publish.",
+    "example": "Orchestrator가 audit/action용 risk.results를 구독할 때 켬."
+  },
+  "features.rabbitmq_events_exchange": {
+    "label": "Events exchange",
+    "description": "casino platform이 publish하는 topic exchange. 비어 있으면 legacy direct queue mode.",
+    "example": "casino.events"
+  },
+  "features.rabbitmq_events_exchange_type": {
+    "label": "Exchange type",
+    "description": "AFS consumer가 declare/bind하는 RabbitMQ exchange type.",
+    "example": "topic"
+  },
+  "features.rabbitmq_events_queue": {
+    "label": "Events queue",
+    "description": "platform exchange에 bind 후 AFS가 consume하는 queue.",
+    "example": "casino.afs"
+  },
+  "features.rabbitmq_events_binding_key": {
+    "label": "Binding key",
+    "description": "queue binding용 routing key 패턴. # = exchange의 모든 message.",
+    "example": "# — 모든 event; player.* — player routing key만."
+  },
+  "features.rabbitmq_prefetch": {
+    "label": "Prefetch count",
+    "description": "consumer channel당 최대 unacknowledged message.",
+    "example": "10 — 보수적; 50 — 더 높은 throughput, 더 많은 memory."
+  },
+  "features.rabbitmq_results_queue": {
+    "label": "Results queue",
+    "description": "scored async result의 outbound queue name.",
+    "example": "risk.results"
+  },
+  "logging.sync_enabled": {
+    "label": "Sync request/response logging",
+    "description": "POST /evaluate의 전체 request 및 response payload를 Postgres에 저장. 아래 Log viewer에서 확인.",
+    "example": "통합 테스트 중 활성화; 고볼륨 production에서 storage 우려 시 비활성화."
+  },
+  "logging.async_enabled": {
+    "label": "Async request/response logging",
+    "description": "가능한 경우 payload와 함께 RabbitMQ scored/skipped/rejected/failed message 저장.",
+    "example": "container log tailing 없이 casino.events → AFS pipeline 디버그용 활성화."
+  }
+}

@@ -2,7 +2,7 @@
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-afs}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-AfsP0stgr3s_D0ck3r!2026}
@@ -35,7 +35,7 @@ services:
     restart: unless-stopped
 
   rabbitmq:
-    image: rabbitmq:3.13-management-alpine
+    image: ${RABBITMQ_IMAGE:-rabbitmq:3.13-management-alpine}
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-afs_mq_prod}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-MqPubl1c_AFS!2026_Kx9mP2vL7nQw8zR4}

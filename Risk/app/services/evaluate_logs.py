@@ -53,11 +53,15 @@ def get_evaluate_log(session_factory: sessionmaker, log_id: int) -> dict | None:
 
 
 def _serialize_row(row: EvaluateRequestLog, *, include_payload: bool) -> dict:
+    decision, risk_level, final_score = _extract_response_meta(row)
     entry = {
         "id": row.id,
         "logged_at": row.logged_at.isoformat(),
         "channel": row.channel,
         "status": row.status,
+        "decision": decision,
+        "risk_level": risk_level,
+        "final_score": final_score,
         "summary": row.summary,
         "event_id": row.event_id,
         "event_type": row.event_type,
@@ -70,6 +74,31 @@ def _serialize_row(row: EvaluateRequestLog, *, include_payload: bool) -> dict:
         entry["request"] = _parse_json(row.request_json)
         entry["response"] = _parse_json(row.response_json)
     return entry
+
+
+def _extract_response_meta(row: EvaluateRequestLog) -> tuple[str | None, str | None, int | None]:
+    response = _parse_json(row.response_json)
+    if not isinstance(response, dict):
+        return None, None, None
+    decision = response.get("decision")
+    risk_level = response.get("risk_level")
+    if isinstance(decision, str):
+        decision = decision.strip().lower() or None
+    else:
+        decision = None
+    if isinstance(risk_level, str):
+        risk_level = risk_level.strip().lower() or None
+    else:
+        risk_level = None
+    final_score = response.get("final_score")
+    if final_score is not None:
+        try:
+            final_score = int(final_score)
+        except (TypeError, ValueError):
+            final_score = None
+    else:
+        final_score = None
+    return decision, risk_level, final_score
 
 
 def _parse_json(value: str | None):

@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -5,26 +6,53 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AFS Admin — Runtime Configuration</title>
-  <link rel="stylesheet" href="/admin/admin.css">
+  <link rel="stylesheet" href="/admin/admin.css?v=31">
+  <link rel="icon" href="/admin/logo.svg" type="image/svg+xml">
 </head>
 
 <body>
   <div id="login-screen" class="screen hidden">
-    <div class="card login-card">
-      <h1>AFS Admin</h1>
-      <label for="api-key-input">Password</label>
-      <input id="api-key-input" type="password" placeholder="From ADMIN_API_KEY in .env" autocomplete="off">
-      <button id="login-btn" type="button">Connect</button>
-      <p id="login-error" class="error hidden"></p>
+    <div class="login-wrap">
+      <div class="card login-card">
+        <div class="login-hero">
+          <select id="locale-select-login" class="locale-select login-locale" aria-label="Language"></select>
+          <img class="login-logo" src="/admin/logo.svg" width="88" height="88" alt="AFS">
+          <h1 id="login-title">AFS Admin</h1>
+          <p id="login-subtitle" class="subtitle">Runtime configuration dashboard</p>
+        </div>
+        <div class="login-body">
+          <label id="login-api-key-label" for="api-key-input">Password</label>
+          <input id="api-key-input" type="password" placeholder="" autocomplete="off">
+          <button id="login-btn" type="button" class="primary">Connect</button>
+          <p id="login-error" class="error hidden"></p>
+        </div>
+      </div>
     </div>
   </div>
 
   <div id="app-screen" class="screen hidden">
     <header class="topbar">
-      <div>
-        <h1>AFS Runtime Config</h1>
+      <div class="topbar-brand">
+        <img class="brand-logo" src="/admin/logo.svg" width="40" height="40" alt="AFS">
+        <div>
+          <h1 id="app-title">AFS Admin</h1>
+        </div>
       </div>
       <div class="topbar-actions">
+        <div class="notify-wrap" id="notify-wrap">
+          <button type="button" id="notify-btn" class="notify-btn secondary" aria-expanded="false" aria-haspopup="true" aria-controls="notify-dropdown" title="">
+            <svg class="notify-icon" aria-hidden="true" viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6V11c0-3.07-1.64-5.64-4.5-6.32V4a1.5 1.5 0 0 0-3 0v.68C8.64 5.36 7 7.93 7 11v5l-2 2v1h16v-1l-2-2Z"/></svg>
+            <span id="notify-badge" class="notify-badge hidden" aria-hidden="true">0</span>
+          </button>
+          <div id="notify-dropdown" class="notify-dropdown hidden" role="menu" aria-labelledby="notify-btn">
+            <div class="notify-dropdown-head">
+              <strong id="notify-dropdown-title"></strong>
+              <button type="button" id="notify-mark-all" class="notify-mark-all"></button>
+            </div>
+            <div id="notify-list" class="notify-list"></div>
+          </div>
+        </div>
+        <select id="locale-select-app" class="locale-select" aria-label="Language"></select>
         <button id="reload-btn" type="button" class="secondary">Reload</button>
         <button id="reset-btn" type="button" class="danger">Reset to defaults</button>
         <button id="save-btn" type="button" class="primary">Save changes</button>
@@ -32,18 +60,24 @@
     </header>
 
     <div id="status-banner" class="banner hidden"></div>
+    <div id="toast-root" class="toast-root" aria-live="polite" aria-atomic="false"></div>
 
     <nav class="tabs" id="tabs"></nav>
 
     <main id="panels" class="panels"></main>
 
     <section class="audit-section">
-      <h2>Recent changes</h2>
+      <h2 id="audit-title">Recent changes</h2>
       <div id="audit-log" class="audit-log"></div>
     </section>
   </div>
 
-  <script src="/admin/admin.js?v=13"></script>
+  <script src="/admin/admin-i18n.js?v=32"></script>
+  <script src="/admin/admin-i18n-fields.js?v=3"></script>
+  <script src="/admin/countries.js?v=1"></script>
+  <script src="/admin/admin-country-select.js?v=1"></script>
+  <script src="/admin/admin-dashboard.js?v=4"></script>
+  <script src="/admin/admin.js?v=30"></script>
 </body>
 
 </html>

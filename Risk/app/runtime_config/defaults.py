@@ -5,11 +5,13 @@ from app.runtime_config.schema import (
     DecisionThresholds,
     FeatureFlags,
     LoggingConfig,
+    DashboardConfig,
     FingerprintConfig,
     IpIntelConfig,
     OperatorConfig,
     RuntimeConfigData,
     BettingPatternConfig,
+    HedgeBettingConfig,
     StepUpVerificationConfig,
     StringListConfig,
     WithdrawalMethodConfig,
@@ -117,6 +119,28 @@ def build_default_runtime_config(settings: Settings | None = None) -> RuntimeCon
             win_rate_high_score=static_config.WIN_RATE_HIGH_SCORE,
             win_rate_critical_score=static_config.WIN_RATE_CRITICAL_SCORE,
         ),
+        hedge_betting=HedgeBettingConfig(
+            enabled=static_config.HEDGE_BETTING_ENABLED,
+            window_seconds=static_config.HEDGE_BETTING_WINDOW_SECONDS,
+            round_leg_ttl_seconds=static_config.HEDGE_BETTING_ROUND_LEG_TTL_SECONDS,
+            time_pair_window_seconds=static_config.HEDGE_BETTING_TIME_PAIR_WINDOW_SECONDS,
+            require_round_id=static_config.HEDGE_BETTING_REQUIRE_ROUND_ID,
+            opposite_selection_groups=[
+                list(group) for group in static_config.HEDGE_BETTING_OPPOSITE_GROUPS
+            ],
+            amount_match_tolerance_percent=static_config.HEDGE_BETTING_AMOUNT_TOLERANCE_PERCENT,
+            opposite_side_same_round_score=static_config.HEDGE_BETTING_OPPOSITE_SIDE_SCORE,
+            hedged_round_medium=static_config.HEDGE_BETTING_ROUND_MEDIUM,
+            hedged_round_high=static_config.HEDGE_BETTING_ROUND_HIGH,
+            hedged_round_critical=static_config.HEDGE_BETTING_ROUND_CRITICAL,
+            hedged_round_medium_score=static_config.HEDGE_BETTING_ROUND_MEDIUM_SCORE,
+            hedged_round_high_score=static_config.HEDGE_BETTING_ROUND_HIGH_SCORE,
+            hedged_round_critical_score=static_config.HEDGE_BETTING_ROUND_CRITICAL_SCORE,
+            volume_washing_enabled=static_config.HEDGE_BETTING_VOLUME_WASHING_ENABLED,
+            min_gross_volume=static_config.HEDGE_BETTING_MIN_GROSS_VOLUME,
+            min_hedged_gross_ratio=static_config.HEDGE_BETTING_MIN_HEDGED_GROSS_RATIO,
+            volume_washing_score=static_config.HEDGE_BETTING_VOLUME_WASHING_SCORE,
+        ),
         step_up_verification=StepUpVerificationConfig(
             enabled=static_config.STEP_UP_VERIFICATION_ENABLED,
             grant_ttl_days=static_config.STEP_UP_VERIFICATION_GRANT_TTL_DAYS,
@@ -141,7 +165,7 @@ def build_default_runtime_config(settings: Settings | None = None) -> RuntimeCon
                 "vpn_withdrawal_attempt",
                 "emulator_detected",
                 "brute_force_login_suspected",
-                "new_device_on_withdrawal",
+                "hedged_bet_volume_washing",
             }
         ),
         features=FeatureFlags(
@@ -163,4 +187,5 @@ def build_default_runtime_config(settings: Settings | None = None) -> RuntimeCon
             sync_enabled=settings.evaluate_file_log_enabled,
             async_enabled=settings.evaluate_file_log_enabled,
         ),
+        dashboard=DashboardConfig(),
     )

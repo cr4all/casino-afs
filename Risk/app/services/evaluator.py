@@ -102,10 +102,7 @@ class RiskEvaluator:
             return
 
         if event.event_type == EventType.PLAYER_LOGIN:
-            if service.trusted_device_count(user_id) == 0:
-                service.register_trusted_device(event)
-            elif service.is_trusted(user_id, event.context):
-                service.register_trusted_device(event)
+            service.register_trusted_device(event)
 
     def _post_process_step_up_grant(self, event: CanonicalEvent) -> None:
         step_up = event.metadata.step_up_verification if event.metadata else None

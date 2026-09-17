@@ -73,6 +73,82 @@ def test_determine_decision_signup_high_blocks():
     assert decision == "block"
 
 
+def test_has_critical_signal_ignores_device_trust_signals_in_config():
+    from app.runtime_config import get_runtime_config_store
+    from app.settings import Settings
+
+    store = get_runtime_config_store()
+    config = store.get()
+    config.critical_signals = list(config.critical_signals) + ["new_device_on_withdrawal"]
+    store.update(config, updated_by="test")
+
+    results = {
+        "trusted_device": EngineResult(
+            engine="trusted_device",
+            score=70,
+            signals=["new_device_on_withdrawal"],
+        ),
+    }
+    assert has_critical_signal(results) is False
+
+    store.reset(settings=Settings(), updated_by="test")
+
+
+def test_determine_decision_new_device_withdrawal_critical_risk_still_challenges():
+    results = {
+        "trusted_device": EngineResult(
+            engine="trusted_device",
+            score=85,
+            signals=["new_device_on_withdrawal", "first_device_seen_for_user"],
+        ),
+    }
+    decision = determine_decision(85, "critical", build_event(event_type="payment.withdraw").event_type, results)
+    assert decision == "challenge"
+
+
+def test_determine_decision_untrusted_device_login_challenges_despite_high_risk():
+    results = {
+        "trusted_device": EngineResult(
+            engine="trusted_device",
+            score=35,
+            signals=["untrusted_device_login"],
+        ),
+        "ip": EngineResult(engine="ip", score=40, signals=["vpn_detected"]),
+    }
+    decision = determine_decision(75, "high", build_event(event_type="player.login").event_type, results)
+    assert decision == "challenge"
+
+
+def test_determine_decision_shared_fingerprint_blocks_before_device_trust_challenge():
+    """Multi-account fingerprint abuse must hard-block even with untrusted_device_login."""
+    results = {
+        "trusted_device": EngineResult(
+            engine="trusted_device",
+            score=50,
+            signals=["untrusted_device_login", "first_device_seen_for_user"],
+        ),
+        "velocity": EngineResult(
+            engine="velocity",
+            score=55,
+            signals=["multiple_accounts_same_fingerprint"],
+        ),
+    }
+    decision = determine_decision(100, "critical", build_event(event_type="player.login").event_type, results)
+    assert decision == "block"
+
+
+def test_determine_decision_new_device_on_withdrawal_challenges():
+    results = {
+        "trusted_device": EngineResult(
+            engine="trusted_device",
+            score=70,
+            signals=["new_device_on_withdrawal"],
+        ),
+    }
+    decision = determine_decision(70, "high", build_event(event_type="payment.withdraw").event_type, results)
+    assert decision == "challenge"
+
+
 def test_determine_decision_withdrawal_medium_blocks():
     results = {"tx": EngineResult(engine="tx", score=40, signals=[])}
     decision = determine_decision(40, "medium", build_event(event_type="payment.withdraw").event_type, results)
@@ -93,6 +169,7 @@ def test_run_all_engines_returns_all_registered_engines(good_signup_event):
         "auth_failure",
         "trusted_device",
         "gaming",
+        "hedge_betting",
         "velocity",
         "transaction",
         "aml_blocklist",

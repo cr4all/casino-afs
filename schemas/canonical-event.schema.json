@@ -121,7 +121,18 @@
         "session_id": { "type": ["string", "null"], "maxLength": 128 },
         "referrer": { "type": ["string", "null"], "maxLength": 512 },
         "failure_reason": { "type": ["string", "null"], "maxLength": 256 },
-        "step_up_verification": { "$ref": "#/$defs/StepUpVerificationData" }
+        "step_up_verification": { "$ref": "#/$defs/StepUpVerificationData" },
+        "game": { "$ref": "#/$defs/GameBetData" }
+      }
+    },
+    "GameBetData": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "round_id": { "type": ["string", "null"], "maxLength": 128 },
+        "table_id": { "type": ["string", "null"], "maxLength": 128 },
+        "game_type": { "type": ["string", "null"], "maxLength": 64 },
+        "selection": { "type": ["string", "null"], "maxLength": 64 }
       }
     },
     "StepUpVerificationData": {

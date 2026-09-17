@@ -1,0 +1,590 @@
+{
+  "decision_thresholds.challenge": {
+    "label": "Challenge しきい値",
+    "description": "中リスクの最低スコア。結果は通常 allow ではなく challenge（Turnstile、MFA、手動レビュー）です。",
+    "example": "40 — スコア 39 のプレイヤーは allow；スコア 40+ は hard-block signal が発火していない限り challenge。"
+  },
+  "decision_thresholds.high": {
+    "label": "高しきい値",
+    "description": "高リスクの最低スコア。Login/signup は often block；deposit/withdraw/bet は block または追加チェックが必要な場合があります。",
+    "example": "61 — スコア 60 は中/challenge のまま；スコア 61+ は高リスク。"
+  },
+  "decision_thresholds.block": {
+    "label": "Block しきい値（重大）",
+    "description": "重大リスクの最低スコア。Decision タブの signal が既に block を強制していない限り、通常 block になります。",
+    "example": "85 — スコア 84 はまだ高リスクの可能性；スコア 85+ は重大/block。"
+  },
+  "operator.platform_name": {
+    "label": "プラットフォーム名",
+    "description": "この operator インスタンスの内部ラベル。ログと監査エントリに使用 — プレイヤーには送信されません。",
+    "example": "DoveBet EU",
+    "signal": "unlicensed_jurisdiction（国が licensed markets にない場合）"
+  },
+  "operator.licensed_markets": {
+    "label": "Licensed markets",
+    "description": "ギャンブルライセンスを保有する ISO 3166-1 alpha-2 国コード。signup、deposit、bet イベントでプレイヤー国または IP geo により確認。",
+    "example": "DE,GB,MT,SE — FR からのプレイヤー、ライセンスなし → unlicensed_jurisdiction。",
+    "signal": "unlicensed_jurisdiction"
+  },
+  "ip_intel.enabled": {
+    "label": "有効",
+    "description": "マスタートグル。オフの場合、外部 IP ルックアップは実行されず vpn/proxy/tor/hosting signal は発行されません。",
+    "example": "アウトバウンド API 呼び出しを避けたいローカル dev ではオフ。",
+    "signal": "vpn_detected, proxy_detected, tor_exit_node, hosting_provider_ip"
+  },
+  "ip_intel.cache_ttl_seconds": {
+    "label": "キャッシュ TTL（秒）",
+    "description": "各 IP ルックアップ結果が Redis またはメモリにキャッシュされる時間（再取得前）。",
+    "example": "3600 — 同一 IP は 1 時間に 1 回確認；VPN 切替は最大 1 時間遅れる可能性。"
+  },
+  "ip_intel.timeout_seconds": {
+    "label": "ルックアップタイムアウト（秒）",
+    "description": "外部 IP API リクエストあたりの最大待機。キャッシュミス時の evaluate レイテンシに影響。",
+    "example": "2.0 — 迅速な fail または fail-open；5.0 — 遅い API により多くの時間。"
+  },
+  "ip_intel.fail_open": {
+    "label": "ルックアップエラー時 fail open",
+    "description": "オン：API タイムアウト/エラーはリスクを追加しない。オフ：ルックアップ失敗は疑わしい（VPN/proxy 疑い）として扱う。",
+    "example": "IP API ダウンタイムで login を block してはならない production ではオン；厳格動作ならオフ。"
+  },
+  "aml.single_deposit_threshold": {
+    "label": "単一 deposit レビュー",
+    "description": "この金額以上の単一 payment.deposit で compliance review tier 1 をトリガー。",
+    "example": "2000 — €2,000 deposit → elevated_deposit_aml_review。",
+    "signal": "elevated_deposit_aml_review"
+  },
+  "aml.large_deposit_threshold": {
+    "label": "大口 deposit レビュー",
+    "description": "最高 deposit AML tier — 非常に大きな単一 deposit 用。",
+    "example": "10000 — €10,000 deposit → large_deposit_aml_review。",
+    "signal": "large_deposit_aml_review"
+  },
+  "aml.withdrawal_review_threshold": {
+    "label": "Withdraw レビュー",
+    "description": "この金額以上の単一 payment.withdraw で cashout レビュー signal をトリガー。",
+    "example": "1000 — €1,000 withdrawal → elevated_withdrawal_review と cashout_review_required。",
+    "signal": "elevated_withdrawal_review, cashout_review_required"
+  },
+  "aml.structuring_threshold": {
+    "label": "Structuring しきい値",
+    "description": "この金額の 90%～100% の deposit をフラグ — 報告限度直下に留まるパターン。",
+    "example": "3000 — €2,850 deposit（3000 の 95%）→ structuring_threshold_deposit。",
+    "signal": "structuring_threshold_deposit"
+  },
+  "aml.micro_deposit_max": {
+    "label": "Micro deposit 上限",
+    "description": "この金額未満の deposit は bonus-farming / 決済テスト検出をトリガー。",
+    "example": "10 — €5 deposit → micro_deposit_bonus_farming。",
+    "signal": "micro_deposit_bonus_farming"
+  },
+  "aml.high_stake_bet_threshold": {
+    "label": "高額 bet",
+    "description": "この金額以上の単一 wallet.bet / game.bet。€100 超の bet（固定エンジンルール）も elevated_stake_bet を発生。",
+    "example": "500 — €500 bet → high_stake_bet。",
+    "signal": "high_stake_bet, elevated_stake_bet"
+  },
+  "aml.blocklist.enabled": {
+    "label": "Blocklist スクリーニング有効",
+    "description": "すべての AML blocklist エンジン（crypto、bank、country 等）のマスタートグル。",
+    "example": "blocklist チェックを AFS 外で完全に実行する場合のみオフ。"
+  },
+  "aml.blocklist.crypto_enabled": {
+    "label": "Crypto wallet スクリーニング",
+    "description": "payment.withdraw / payment.deposit の crypto payout アドレスを OFAC sync + 手動リストと照合。",
+    "example": "withdraw evaluate で payment_method_type: crypto と payment_method_key: 0xabc… を送信。",
+    "signal": "ofac_sanctioned_wallet, blocklisted_payout_address"
+  },
+  "aml.blocklist.bank_enabled": {
+    "label": "Bank account スクリーニング",
+    "description": "銀行 payout の IBAN/銀行口座 ID を確認。",
+    "example": "payment_method_type: bank, payment_method_key: DE89370400440532013000",
+    "signal": "blocklisted_payout_address"
+  },
+  "aml.blocklist.ewallet_enabled": {
+    "label": "E-wallet スクリーニング",
+    "description": "e-wallet payout の e-wallet ID またはメールを確認。",
+    "example": "payment_method_type: ewallet, payment_method_key: skrill_user@email.com",
+    "signal": "blocklisted_payout_address"
+  },
+  "aml.blocklist.card_enabled": {
+    "label": "Card payout スクリーニング",
+    "description": "カード withdrawal の card token または payout 参照を確認。",
+    "example": "payment_method_type: card, payment_method_key: card_token_abc123",
+    "signal": "blocklisted_payout_address"
+  },
+  "aml.blocklist.country_enabled": {
+    "label": "Country blocklist スクリーニング",
+    "description": "プレイヤー国が OFAC sync、Lists タブ、または手動 countries と一致すると signup/login/deposit/withdraw を block。",
+    "example": "プレイヤー国 KP、country blocklist 有効 → blocklisted_country。",
+    "signal": "blocklisted_country"
+  },
+  "aml.blocklist.sync_ofac_crypto_enabled": {
+    "label": "OFAC crypto wallet 自動 sync",
+    "description": "米国財務省 SDN crypto アドレスを毎日取得。Risk コンテナからのアウトバウンド HTTPS が必要。",
+    "example": "有効化後、下の Sync OFAC lists now ボタンを使用。"
+  },
+  "aml.blocklist.sync_ofac_countries_enabled": {
+    "label": "OFAC countries 自動 sync",
+    "description": "各 sync で Treasury 由来の制裁国 ISO コードを Postgres にロード。",
+    "example": "スケジュール（sync interval）および手動 sync で実行。"
+  },
+  "aml.blocklist.sync_interval_hours": {
+    "label": "Sync 間隔（時間）",
+    "description": "バックグラウンドジョブが OFAC crypto および country リストを更新する頻度。",
+    "example": "24 — 1 日 1 回 sync；6 — より頻繁な更新。"
+  },
+  "aml.blocklist.fail_open": {
+    "label": "Sync 不可時 fail open",
+    "description": "オン：空/古い blocklist DB は payout を block しない。オフ：sync データ欠如は高リスクとして扱う。",
+    "example": "production レジリエンスのためオン；最大 compliance 厳格性のためオフ。"
+  },
+  "aml.blocklist.use_lists_sanctioned_countries": {
+    "label": "Lists タブ制裁国を含める",
+    "description": "Lists → sanctioned countries を country blocklist チェックにマージ（OFAC sync と手動に加えて）。",
+    "example": "Lists タブに IR を追加 + 有効化 → イランのプレイヤー sanctioned_country。",
+    "signal": "sanctioned_country"
+  },
+  "aml.blocklist.crypto_hit_score": {
+    "label": "Payout blocklist hit スコア",
+    "description": "payout 先（crypto/bank/e-wallet/card）が blocklist エントリと一致したときのリスクスコア。",
+    "example": "90 — 他 signal と組み合わせると通常 block 方向へ。"
+  },
+  "aml.blocklist.country_hit_score": {
+    "label": "Country blocklist hit スコア",
+    "description": "プレイヤー国が blocklist と一致したときのリスクスコア。",
+    "example": "90 — デフォルト；block より challenge を望む場合 70 に下げる。"
+  },
+  "aml.blocklist.manual_crypto_wallets": {
+    "label": "手動 crypto wallet",
+    "description": "block する追加 wallet アドレス — 1 行に 1 つ。OFAC sync に加え crypto payout で確認。",
+    "example": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb\\nbc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh"
+  },
+  "aml.blocklist.manual_bank_accounts": {
+    "label": "手動 bank account",
+    "description": "block する IBAN または銀行口座識別子 — 1 行に 1 つ。",
+    "example": "DE89370400440532013000\\nGB82WEST12345698765432"
+  },
+  "aml.blocklist.manual_ewallet_accounts": {
+    "label": "手動 e-wallet account",
+    "description": "block する e-wallet ID またはメール — 1 行に 1 つ。",
+    "example": "skrill:fraud_ring_01\\nneteller:abuse@test.com"
+  },
+  "aml.blocklist.manual_card_accounts": {
+    "label": "手動 card payout",
+    "description": "block する card token または payout 参照 — 1 行に 1 つ。",
+    "example": "card_token_stolen_batch_42\\nvisa_payout_ref_99102"
+  },
+  "aml.blocklist.manual_countries": {
+    "label": "手動 blocklist countries",
+    "description": "block する ISO 3166-1 alpha-2 コード — 1 行に 1 つ。OFAC sync と Lists タブとマージ。",
+    "example": "IR\\nKP\\nSY",
+    "signal": "blocklisted_country"
+  },
+  "withdrawal_method.enabled": {
+    "label": "有効",
+    "description": "オフ：共有 payout 先チェックをスキップ。",
+    "example": "すべての payment.withdraw evaluate に payment_method_type + payment_method_key が必要。",
+    "signal": "shared_withdrawal_method, multiple_accounts_shared_payout_method, multi_account_shared_withdrawal_method"
+  },
+  "withdrawal_method.distinct_users_medium": {
+    "label": "異なる user（中）",
+    "description": "中 tier が発火する前に、同一 payout key へ withdraw する異なる user_id の数。",
+    "example": "2 — user A と B が IBAN DE89… へ withdraw → shared_withdrawal_method。",
+    "signal": "shared_withdrawal_method"
+  },
+  "withdrawal_method.distinct_users_high": {
+    "label": "異なる user（高）",
+    "description": "高 tier multi-account payout 悪用の異なる user しきい値。",
+    "example": "3 — 3 アカウントが 1 つの Skrill メールを共有。",
+    "signal": "multiple_accounts_shared_payout_method"
+  },
+  "withdrawal_method.distinct_users_critical": {
+    "label": "異なる user（重大）",
+    "description": "重大 tier の異なる user しきい値 — 通常 Decision タブ経由で block を強制。",
+    "example": "4 — 4 アカウント、同一 crypto wallet → multi_account_shared_withdrawal_method（hard block）。",
+    "signal": "multi_account_shared_withdrawal_method"
+  },
+  "withdrawal_method.medium_score": {
+    "label": "中スコア",
+    "description": "異なる user 中しきい値到達時に追加されるリスクスコア。",
+    "example": "35 — 他エンジンと組み合わせ challenge/high 到達。"
+  },
+  "withdrawal_method.high_score": {
+    "label": "高スコア",
+    "description": "異なる user 高しきい値到達時に追加されるリスクスコア。",
+    "example": "55"
+  },
+  "withdrawal_method.critical_score": {
+    "label": "重大スコア",
+    "description": "異なる user 重大しきい値到達時に追加されるリスクスコア。",
+    "example": "80 — decision threshold が ≤80 なら単独で block に十分なことが多い。"
+  },
+  "betting_patterns.enabled": {
+    "label": "有効",
+    "description": "順次 burst カウンターと win-rate ratio チェックのマスタートグル。",
+    "example": "オフでこのタブのすべての signal を無効化。"
+  },
+  "betting_patterns.burst_window_seconds": {
+    "label": "Burst window（秒）",
+    "description": "すべての burst カウンターと win-rate 計算のローリング時間ウィンドウ。",
+    "example": "300 — 5 分間の 10 game.bets が burst にカウント；各イベントでウィンドウがスライド。"
+  },
+  "betting_patterns.game_bet_burst_medium": {
+    "label": "game.bet burst — 中",
+    "description": "中 burst signal 前のウィンドウ内の順次 game.bet イベント。",
+    "example": "10 — 300 秒以内に連続 10 bonus spin。",
+    "signal": "sequential_game_bet_burst"
+  },
+  "betting_patterns.game_bet_burst_high": {
+    "label": "game.bet burst — 高",
+    "description": "高 tier burst の順次 game.bet カウント。",
+    "example": "20",
+    "signal": "sequential_game_bet_burst (higher score tier)"
+  },
+  "betting_patterns.game_bet_burst_critical": {
+    "label": "game.bet burst — 重大",
+    "description": "重大 tier burst の順次 game.bet カウント。",
+    "example": "35",
+    "signal": "sequential_game_bet_burst (critical score tier)"
+  },
+  "betting_patterns.wallet_bet_burst_medium": {
+    "label": "wallet.bet burst — 中",
+    "description": "中 burst 前のウィンドウ内の順次 wallet.bet（リアルマネー）イベント。",
+    "example": "20 — 高速 live-casino betting bot パターン。",
+    "signal": "sequential_wallet_bet_burst"
+  },
+  "betting_patterns.wallet_bet_burst_high": {
+    "label": "wallet.bet burst — 高",
+    "description": "高 tier の順次 wallet.bet カウント。",
+    "example": "40",
+    "signal": "sequential_wallet_bet_burst (higher score tier)"
+  },
+  "betting_patterns.wallet_bet_burst_critical": {
+    "label": "wallet.bet burst — 重大",
+    "description": "重大 tier の順次 wallet.bet カウント。",
+    "example": "60",
+    "signal": "sequential_wallet_bet_burst (critical score tier)"
+  },
+  "betting_patterns.wallet_win_burst_medium": {
+    "label": "wallet.win burst — 中",
+    "description": "中 win burst 前のウィンドウ内の順次 wallet.win クレジット。",
+    "example": "8 — 短時間に多数の win が付与。",
+    "signal": "sequential_wallet_win_burst"
+  },
+  "betting_patterns.wallet_win_burst_high": {
+    "label": "wallet.win burst — 高",
+    "description": "高 tier の順次 wallet.win カウント。",
+    "example": "15",
+    "signal": "sequential_wallet_win_burst (higher score tier)"
+  },
+  "betting_patterns.wallet_win_burst_critical": {
+    "label": "wallet.win burst — 重大",
+    "description": "重大 tier の順次 wallet.win カウント。",
+    "example": "25",
+    "signal": "sequential_wallet_win_burst (critical score tier)"
+  },
+  "betting_patterns.win_rate_min_bets": {
+    "label": "Win rate — 最小 bet",
+    "description": "win-rate ratio 評価前のウィンドウ内最小 wallet.bet + game.bet カウント。",
+    "example": "5 — 最低 5 bet 必要；4 win / 4 bet は 5 番目の bet まで無視。"
+  },
+  "betting_patterns.win_rate_high_ratio": {
+    "label": "Win rate — 高 ratio",
+    "description": "高 win-rate signal をトリガーする win ÷ bet ratio（0–1）。",
+    "example": "0.75 — ウィンドウ内 8 bet 中 6 win（75%）→ high_win_rate_in_betting_sequence。",
+    "signal": "high_win_rate_in_betting_sequence"
+  },
+  "betting_patterns.win_rate_critical_ratio": {
+    "label": "Win rate — 重大 ratio",
+    "description": "重大 win-rate tier の win ÷ bet ratio。",
+    "example": "0.90 — 10 bet 中 9 win → critical_win_rate_in_betting_sequence。",
+    "signal": "critical_win_rate_in_betting_sequence"
+  },
+  "hedge_betting.enabled": {
+    "label": "有効",
+    "description": "hedged-round 検出と volume-washing ratio のマスタートグル。",
+    "example": "metadata.game.selection と round_id をまだ送信していない場合はオフ。"
+  },
+  "hedge_betting.window_seconds": {
+    "label": "Stats window（秒）",
+    "description": "繰り返し hedged round と gross volume ratio をカウントするローリングウィンドウ。",
+    "example": "3600 — user あたり過去 1 時間の hedged round をカウント。"
+  },
+  "hedge_betting.round_leg_ttl_seconds": {
+    "label": "Round leg TTL（秒）",
+    "description": "同一 round_id で反対側を待つ間、最初の bet leg を保存する時間。",
+    "example": "600 — 12:00:00 banker bet；12:09:59 player bet はまだマッチ；12:10:01 で leg 失効。"
+  },
+  "hedge_betting.time_pair_window_seconds": {
+    "label": "Time-pair window（秒）",
+    "description": "round_id 欠如だが table_id ありの fallback グループ — 同一 table でこのウィンドウ内の bet がペア可能。",
+    "example": "15 — require_round_id がオフで round_id 欠如の場合のみ使用。"
+  },
+  "hedge_betting.require_round_id": {
+    "label": "round_id 必須",
+    "description": "オン：metadata.game.round_id がある場合のみ hedge チェック実行。backend が round_id を送信したら推奨。",
+    "example": "production でオン — time-pair fallback の false positive を回避。"
+  },
+  "hedge_betting.opposite_selection_groups": {
+    "label": "Opposite selection groups",
+    "description": "グループの JSON 配列。同一内部配列の selection は同一 round で反対として扱う。",
+    "signal": "opposite_side_bets_same_round"
+  },
+  "hedge_betting.amount_match_tolerance_percent": {
+    "label": "Amount match tolerance（%）",
+    "description": "反対 leg の stake は互いにこのパーセント以内である必要あり。",
+    "example": "10 — banker €1000 + player €950 はマッチ；player €800 は不可。"
+  },
+  "hedge_betting.opposite_side_same_round_score": {
+    "label": "スコア — opposite sides same round",
+    "description": "単一 hedged round（反対 sides、一致 amount）検出時のリスクスコア。",
+    "example": "50 — 最初に検出された banker+player ペアで発火。",
+    "signal": "opposite_side_bets_same_round"
+  },
+  "hedge_betting.hedged_round_medium": {
+    "label": "Hedged rounds — 中",
+    "description": "反復パターン signal（中 tier）前の stats window 内の異なる hedged round。",
+    "example": "3 — 1 時間に 3 つの別 hedged hand。",
+    "signal": "repeated_hedged_rounds"
+  },
+  "hedge_betting.hedged_round_high": {
+    "label": "Hedged rounds — 高",
+    "description": "高 tier の異なる hedged round。",
+    "example": "8",
+    "signal": "high_repeated_hedged_rounds"
+  },
+  "hedge_betting.hedged_round_critical": {
+    "label": "Hedged rounds — 重大",
+    "description": "重大 tier の異なる hedged round。",
+    "example": "15",
+    "signal": "critical_hedged_bet_volume_washing"
+  },
+  "hedge_betting.volume_washing_enabled": {
+    "label": "Volume washing チェック",
+    "description": "オン：stats window で hedged gross bet volume を total gross bet volume と比較。",
+    "example": "プレイヤー 1h で hedged €6000 + normal €4000 → 60% hedged share。",
+    "signal": "hedged_bet_volume_washing"
+  },
+  "hedge_betting.min_gross_volume": {
+    "label": "Volume washing — 最小 gross",
+    "description": "volume-washing ratio 評価前のウィンドウ内最小 total bet volume。",
+    "example": "5000 — プレイヤーのウィンドウ内 gross bet が最低 €5000 まで ratio を無視。"
+  },
+  "hedge_betting.min_hedged_gross_ratio": {
+    "label": "Volume washing — 最小 hedged ratio",
+    "description": "volume washing signal をトリガーする最小 hedged_gross ÷ total_gross ratio（0–1）。",
+    "example": "0.5 — gross volume の 50% 以上が hedged → hedged_bet_volume_washing（Decision にあれば hard block）。",
+    "signal": "hedged_bet_volume_washing"
+  },
+  "hedge_betting.volume_washing_score": {
+    "label": "スコア — volume washing",
+    "description": "volume-washing ratio しきい値到達時に追加されるリスクスコア。",
+    "example": "55 — opposite_side スコアと組み合わせてより高い合計。"
+  },
+  "step_up_verification.enabled": {
+    "label": "有効",
+    "description": "オフ：step_up_verification metadata を無視し challenge 結果をダウングレードしない。",
+    "example": "frontend が challenge 応答で Turnstile を表示する場合オン。"
+  },
+  "step_up_verification.grant_ttl_days": {
+    "label": "Grant 期間（日）",
+    "description": "同一 user_id + device fingerprint の成功 verification grant の有効期間。",
+    "example": "7 — プレイヤーが Turnstile を 1 回通過；同一 device で 7 日間後続 login allow。"
+  },
+  "step_up_verification.max_verified_age_minutes": {
+    "label": "verified_at 最大 age（分）",
+    "description": "metadata.verified_at は evaluate リクエストタイムスタンプからこの分数以内である必要あり。",
+    "example": "5 — 12:00 siteverify、12:06 evaluate → grant が stale で拒否。"
+  },
+  "step_up_verification.downgrade_challenge_to_allow": {
+    "label": "Challenge を allow にダウングレード",
+    "description": "オン：アクティブ grant が challenge 決定を allow に変更。block または critical signal は決して上書きしない。",
+    "example": "オン — Turnstile 通過後の typical production 設定。"
+  },
+  "step_up_verification.allowed_hostnames": {
+    "label": "Allowed hostnames",
+    "description": "siteverify 応答からのオプション Cloudflare hostname allowlist — 1 行に 1 つ。空 = チェック省略。",
+    "example": "casino.example.com\\nwww.casino.example.com"
+  },
+  "step_up_verification.applicable_event_types": {
+    "label": "Applicable event types",
+    "description": "step-up grant が challenge をダウングレードできる event type — 1 行に 1 つ。",
+    "example": "player.login\\nplayer.signup\\npayment.deposit"
+  },
+  "fingerprint.required_channels": {
+    "label": "Required channels",
+    "description": "context.fingerprint が期待される channel。これらの channel で値欠如は missing_fingerprint。",
+    "example": "web,mobile — visitorId なしの web signup → missing_fingerprint。",
+    "signal": "missing_fingerprint"
+  },
+  "fingerprint.min_length": {
+    "label": "最小長",
+    "description": "有効な FingerprintJS visitorId の最小文字長。",
+    "example": "10 — abc123（6 文字）→ malformed_fingerprint。",
+    "signal": "malformed_fingerprint"
+  },
+  "fingerprint.max_length": {
+    "label": "最大長",
+    "description": "有効な visitorId 最大長。min–max 外の値は拒否。",
+    "example": "64",
+    "signal": "malformed_fingerprint, invalid_fingerprint"
+  },
+  "fingerprint.suspicious_values": {
+    "label": "疑わしい値",
+    "description": "既知の偽または placeholder fingerprint 文字列 — 1 行に 1 つ。完全一致で検証失敗。",
+    "example": "undefined\\nnull\\n00000000-0000-0000-0000-000000000000",
+    "signal": "invalid_fingerprint"
+  },
+  "lists.disposable_domains": {
+    "label": "Disposable email domains",
+    "description": "使い捨て email プロバイダー domain。これらの domain での signup は通常 hard-blocked。",
+    "example": "mailinator.com\\n10minutemail.com\\nguerrillamail.com",
+    "signal": "disposable_email"
+  },
+  "lists.high_risk_countries": {
+    "label": "High-risk countries",
+    "description": "詐欺率が高い ISO country code。geo/IP チェックでスコア追加 — 自動 block ではない。",
+    "example": "NG\\nGH\\nPK",
+    "signal": "high_risk_country"
+  },
+  "lists.sanctioned_countries": {
+    "label": "Sanctioned countries",
+    "description": "制裁またはギャンブル禁止 jurisdiction の ISO code。AML blocklist が Lists タブを含む場合に使用。",
+    "example": "IR\\nKP\\nCU",
+    "signal": "sanctioned_country"
+  },
+  "lists.generic_names": {
+    "label": "Generic names",
+    "description": "signup/identity の placeholder display name — 1 行に 1 つ、大文字小文字無視。",
+    "example": "test\\nuser\\nadmin\\nPlayer",
+    "signal": "generic_name"
+  },
+  "lists.role_based_email_locals": {
+    "label": "Role-based email locals",
+    "description": "非個人アカウントを示す email local part（@ 前）。",
+    "example": "admin\\nsupport\\ninfo\\nnoreply",
+    "signal": "role_based_email"
+  },
+  "lists.suspicious_email_tlds": {
+    "label": "Suspicious email TLDs",
+    "description": "スパムに関連する top-level domain。email がこれら TLD で終わるとマッチ。",
+    "example": ".xyz\\n.top\\n.click",
+    "signal": "suspicious_email_tld"
+  },
+  "lists.suspicious_email_local_tokens": {
+    "label": "Suspicious email local tokens",
+    "description": "使い捨てまたは bot account を示唆する email local part の部分文字列。",
+    "example": "temp\\nspam\\nbot\\nfake",
+    "signal": "suspicious_email_pattern"
+  },
+  "lists.bot_user_agent_tokens": {
+    "label": "Bot User-Agent tokens",
+    "description": "スクリプトまたは自動化を示す User-Agent header の部分文字列。",
+    "example": "curl\\npython-requests\\nheadless\\nscrapy",
+    "signal": "bot_user_agent"
+  },
+  "lists.emulator_ua_tokens": {
+    "label": "Emulator UA tokens",
+    "description": "Android emulator または仮想 device の User-Agent パターン。",
+    "example": "genymotion\\nbluestacks\\nsdk_gphone",
+    "signal": "emulator_detected"
+  },
+  "lists.suspicious_referrers": {
+    "label": "Suspicious referrers",
+    "description": "signup で低信頼として扱う正確な referrer 値。",
+    "example": "direct\\nunknown\\n（blank referrer 用の空行）",
+    "signal": "suspicious_referrer"
+  },
+  "lists.bonus_abuse_referrer_tokens": {
+    "label": "Bonus abuse referrer tokens",
+    "description": "bonus-hunting または affiliate abuse サイトに関連する signup referrer URL の部分文字列。",
+    "example": "free-spins\\nno-deposit\\nbonus-hunter",
+    "signal": "bonus_abuse_referrer"
+  },
+  "velocity_thresholds": {
+    "label": "Velocity thresholds（JSON）",
+    "description": "しきい値名 → 最大 count のマップ。接尾辞 _medium/_high/_critical で tier 選択。キー削除禁止 — エンジンは完全セットを期待。",
+    "example": "{\\n  \"login_ip_medium\": 5,\\n  \"login_ip_high\": 15,\\n  \"login_ip_critical\": 30,\\n  \"signup_ip_critical\": 10,\\n  \"deposit_user_high\": 6\\n}",
+    "signal": "medium_login_ip_velocity, bulk_login_attack, bulk_signup_attack, rapid_deposit_activity, …"
+  },
+  "critical_signals": {
+    "label": "Hard-block signals",
+    "description": "エンジンが emit する正確な signal name 文字列 — 1 行に 1 つ。大文字小文字は完全一致必須。",
+    "example": "disposable_email\\nbulk_login_attack\\nhedged_bet_volume_washing\\nmulti_account_shared_withdrawal_method"
+  },
+  "features.sync_publish_audit": {
+    "label": "Sync /evaluate で audit publish",
+    "description": "オン：同期 POST /evaluate 結果も Orchestrator audit 用 RabbitMQ に publish。",
+    "example": "Orchestrator が async event と同じ pipeline で sync API 決定を見る必要がある場合オン。"
+  },
+  "features.decision_cache_ttl_seconds": {
+    "label": "Decision cache TTL（秒）",
+    "description": "同一 event_id 決定を Redis にキャッシュして重複 re-scoring を回避。Redis 有効が必要。",
+    "example": "300 — 5 分以内の同一 event_id はキャッシュ決定を返す；0 = 無効。"
+  },
+  "features.redis_enabled": {
+    "label": "Redis 有効",
+    "description": "velocity counter、hedge/betting store、オプション decision cache に Redis を使用。",
+    "example": "単一インスタンス dev（メモリ counter）はオフ；production multi-instance はオン。"
+  },
+  "features.redis_velocity_ip_ttl": {
+    "label": "Redis IP velocity TTL",
+    "description": "Redis の IP velocity key の sliding window 長（秒）。",
+    "example": "3600 — login_ip_high が過去 1 時間の 1 IP からの login をカウント。"
+  },
+  "features.redis_velocity_domain_ttl": {
+    "label": "Redis domain velocity TTL",
+    "description": "email domain signup velocity counter の sliding window 長。",
+    "example": "86400 — signup_domain_* が 24h で domain あたり signup をカウント。"
+  },
+  "features.rabbitmq_enabled": {
+    "label": "RabbitMQ consumer 有効",
+    "description": "casino platform exchange/queue から event をスコアリングする async consumer を開始。",
+    "example": "platform が casino.events に wallet.bet、player.login 等を publish する場合オン。"
+  },
+  "features.rabbitmq_publish_results": {
+    "label": "Orchestrator に results publish",
+    "description": "async scoring 後に scored EvaluateResponse メッセージを results queue に publish。",
+    "example": "Orchestrator が audit/action 用に risk.results を subscribe する場合オン。"
+  },
+  "features.rabbitmq_events_exchange": {
+    "label": "Events exchange",
+    "description": "casino platform が publish する topic exchange。空 = legacy direct queue mode。",
+    "example": "casino.events"
+  },
+  "features.rabbitmq_events_exchange_type": {
+    "label": "Exchange type",
+    "description": "AFS consumer が declare/bind する RabbitMQ exchange type。",
+    "example": "topic"
+  },
+  "features.rabbitmq_events_queue": {
+    "label": "Events queue",
+    "description": "platform exchange に bind 後 AFS が consume する queue。",
+    "example": "casino.afs"
+  },
+  "features.rabbitmq_events_binding_key": {
+    "label": "Binding key",
+    "description": "queue binding 用 routing key パターン。# = exchange 上のすべての message。",
+    "example": "# — すべての event；player.* — player routing key のみ。"
+  },
+  "features.rabbitmq_prefetch": {
+    "label": "Prefetch count",
+    "description": "consumer channel あたりの最大 unacknowledged message。",
+    "example": "10 — 保守的；50 — より高い throughput、より多い memory。"
+  },
+  "features.rabbitmq_results_queue": {
+    "label": "Results queue",
+    "description": "scored async result の outbound queue name。",
+    "example": "risk.results"
+  },
+  "logging.sync_enabled": {
+    "label": "Sync request/response logging",
+    "description": "POST /evaluate の完全 request/response payload を Postgres に保存。下の Log viewer で確認。",
+    "example": "統合テスト中に有効化；高 volume production で storage が懸念なら無効化。"
+  },
+  "logging.async_enabled": {
+    "label": "Async request/response logging",
+    "description": "利用可能な場合 payload 付きで RabbitMQ scored/skipped/rejected/failed message を保存。",
+    "example": "container log を tail せず casino.events → AFS pipeline をデバッグする場合有効化。"
+  }
+}

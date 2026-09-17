@@ -79,6 +79,15 @@ class StepUpVerificationData(BaseModel):
     action: Optional[str] = None
 
 
+class GameBetData(BaseModel):
+    """Live-casino bet leg — required for hedged/matched bet detection (e.g. banker + player same round)."""
+
+    round_id: Optional[str] = None
+    table_id: Optional[str] = None
+    game_type: Optional[str] = None
+    selection: Optional[str] = None
+
+
 class MetadataData(BaseModel):
     channel: Optional[str] = None
     session_id: Optional[str] = None
@@ -89,6 +98,7 @@ class MetadataData(BaseModel):
     reference_id: Optional[str] = None
     funding_source: Optional[str] = None
     step_up_verification: Optional[StepUpVerificationData] = None
+    game: Optional[GameBetData] = None
 
 
 class CanonicalEvent(BaseModel):

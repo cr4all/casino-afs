@@ -1,7 +1,11 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.api.admin_auth import require_admin_key
 from app.runtime_config import RuntimeConfigData, get_runtime_config_store
+from app.services.dashboard_alerts import get_dashboard_alerts
+from app.services.dashboard_metrics import get_dashboard_metrics
 from app.services.evaluate_logs import get_evaluate_log, list_evaluate_logs
 from app.settings import settings
 from app.infrastructure.aml_blocklist import get_aml_blocklist_service
@@ -39,6 +43,29 @@ def reset_config(_: str = Depends(require_admin_key)) -> RuntimeConfigData:
 def config_audit(limit: int = 50, _: str = Depends(require_admin_key)) -> dict:
     entries = get_runtime_config_store().list_audit(limit=min(limit, 200))
     return {"entries": entries}
+
+
+@router.get("/dashboard/metrics")
+def dashboard_metrics(
+    hours: float = Query(default=24, ge=0.25, le=168),
+    bucket_minutes: int = Query(default=5, ge=1, le=60),
+    _: str = Depends(require_admin_key),
+) -> dict:
+    result = get_dashboard_metrics(
+        get_session_factory(),
+        hours=hours,
+        bucket_minutes=bucket_minutes,
+    )
+    return result.to_dict()
+
+
+@router.get("/dashboard/alerts")
+def dashboard_alerts(
+    since: datetime = Query(..., description="ISO-8601 timestamp; return alerts after this instant"),
+    limit: int = Query(default=50, ge=1, le=100),
+    _: str = Depends(require_admin_key),
+) -> dict:
+    return get_dashboard_alerts(get_session_factory(), since=since, limit=limit)
 
 
 @router.get("/logs")

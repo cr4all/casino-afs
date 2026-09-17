@@ -39,6 +39,23 @@ def platform_envelope_to_canonical(raw: dict[str, Any]) -> dict[str, Any]:
     if metadata.get("platform"):
         context["platform"] = str(metadata["platform"])
 
+    canonical_metadata: dict[str, Any] = {
+        "channel": "api",
+        "platform_event_version": raw.get("version"),
+        "reference_type": data.get("reference_type"),
+        "reference_id": data.get("reference_id"),
+        "funding_source": data.get("funding_source"),
+    }
+
+    game_meta = metadata.get("game") if isinstance(metadata.get("game"), dict) else data.get("game")
+    if isinstance(game_meta, dict):
+        canonical_metadata["game"] = {
+            "round_id": game_meta.get("round_id") or data.get("round_id"),
+            "table_id": game_meta.get("table_id") or data.get("table_id"),
+            "game_type": game_meta.get("game_type") or data.get("game_type"),
+            "selection": game_meta.get("selection") or game_meta.get("bet_side") or data.get("selection"),
+        }
+
     canonical: dict[str, Any] = {
         "event_id": raw["event_id"],
         "event_type": raw["event_type"],
@@ -50,13 +67,7 @@ def platform_envelope_to_canonical(raw: dict[str, Any]) -> dict[str, Any]:
             "name": None,
         },
         "context": context,
-        "metadata": {
-            "channel": "api",
-            "platform_event_version": raw.get("version"),
-            "reference_type": data.get("reference_type"),
-            "reference_id": data.get("reference_id"),
-            "funding_source": data.get("funding_source"),
-        },
+        "metadata": canonical_metadata,
     }
 
     if amount is not None or data.get("currency"):
